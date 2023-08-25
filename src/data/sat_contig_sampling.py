@@ -20,7 +20,7 @@ def jitter_contig_coordinates(size, start, end, reference_length):
     """
 
     sat_size = end - start
-    max_noise = (size - sat_size) // 2
+    max_noise = (size - sat_size)
     if start - max_noise < 0:
         max_noise = start
 
@@ -65,7 +65,6 @@ def main():
     mean_log = 10.5
     sigma_log = 1.25
     sanity_check = False
-    max_length = 75000
 
     reference_index = SeqIO.index(ref_seqs.absolute().as_posix(), "fasta")
 
@@ -84,7 +83,7 @@ def main():
             sat_id, seq_origin_id, start, end = line[0], line[1], int(line[2]), int(line[3])
 
             size = 0
-            while size < end - start or size > max_length:
+            while size < end - start:
                 size = np.random.lognormal(mean_log, sigma_log)
                 size = int(np.round(size))
 
