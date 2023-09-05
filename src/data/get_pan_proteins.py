@@ -43,6 +43,7 @@ def get_pan_proteins(protein_seqs: Path = Path("data/raw/proteins/all_proteins.f
     min_seq_id = min_seq_id
 
     mmseqs_tmp = Path("./.tmp/mmseqs")
+    mmseqs_tmp.mkdir(parents=True, exist_ok=True)
     protein_seqs = protein_seqs
 
     out_prefix = out_prefix

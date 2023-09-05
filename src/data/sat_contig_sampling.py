@@ -20,10 +20,13 @@ def jitter_contig_coordinates(size, start, end, reference_length):
     """
 
     sat_size = end - start
-    max_noise = (size - sat_size)
+    max_noise = size - sat_size
     if start - max_noise < 0:
         max_noise = start
 
+    if max_noise < 0:
+        return start, end, 0, sat_size
+    
     random_noise = np.random.randint(0, max_noise)
     contig_start = start - random_noise
     contig_end = contig_start + size
@@ -46,25 +49,35 @@ def jitter_contig_coordinates(size, start, end, reference_length):
 
     return contig_start, contig_end, start_in_contig, end_in_contig
 
-@click.command()
-def main():
+
+def sat_contig_sampling(fixed: bool = False, fixed_length: int = 25000,
+                        sanity_check: bool = True,
+                        input_root: Path = Path("data/processed/01_combined_renamed"),
+                        output_root: Path = Path("data/processed/03_mock_data/satellite_contigs")):
     """ sample reference genomes around a specific coordinate set.
         in a lognormal size distribution.
-
+        
+        Optionally do it with a fixed size.
     """
 
+    fixed = fixed
+    fixed_length = fixed_length
+    sanity_check = True
+    
     # Paths
-
-    sat_seqs = Path("data/processed/01_combined_renamed/all_sequences.fna")
-    ref_seqs = Path("data/processed/01_combined_renamed/all_reference_sequences.fna")
-    sat_coords = Path("data/processed/01_combined_renamed/satellite_coordinates.tsv")
-    out_root = Path("data/processed/03_mock_data/satellite_contigs")
-
+    input_root = input_root
+    output_root = output_root
+    
+    sat_seqs = Path(input_root, "all_sequences.fna")
+    ref_seqs = Path(input_root, "all_reference_sequences.fna")
+    sat_coords = Path(input_root, "satellite_coordinates.tsv")
+    sample_table = pd.read_csv(Path(input_root, "sample_table.tsv"),
+                               sep="\t", header=None, names=['id', 'type', 'label'])
+    
 
     # Hardcoded parameters
     mean_log = 10.5
     sigma_log = 1.25
-    sanity_check = False
 
     reference_index = SeqIO.index(ref_seqs.absolute().as_posix(), "fasta")
 
@@ -73,19 +86,24 @@ def main():
         n_samples = sum(1 for line in f)
     
     # Generate contigs
-    with open(sat_coords, "r") as f, open(Path(out_root, "sat_contigs_coord.tsv"), "w") as f_out, open(Path(out_root, "sat_contigs.fna"), "w") as f_out_fasta:
+    with open(sat_coords, "r") as f, open(Path(output_root, "sat_contigs_coord.tsv"), "w") as f_out, open(Path(output_root, "sample_table.tsv"), 'w') as f_out_table, open(Path(output_root, "sat_contigs.fna"), "w") as f_out_fasta:
         
         for line_n, line in enumerate(f):
             if line_n % 100 == 0:
-                print(f"Checking line {line_n} of {n_samples}")
+                print(f"Sampling {line_n} of {n_samples}")
             line = line.split("\t")
             
             sat_id, seq_origin_id, start, end = line[0], line[1], int(line[2]), int(line[3])
 
-            size = 0
-            while size < end - start:
-                size = np.random.lognormal(mean_log, sigma_log)
-                size = int(np.round(size))
+            if fixed:
+                size = fixed_length
+                if len(reference_index[seq_origin_id].seq) < size or end - start > size:
+                    continue
+            else:
+                size = 0
+                while size < end - start:
+                    size = np.random.lognormal(mean_log, sigma_log)
+                    size = int(np.round(size))
 
             contig_start, contig_end, start_in_contig, end_in_contig = jitter_contig_coordinates(
                 size, start, end, len(reference_index[seq_origin_id].seq)
@@ -98,6 +116,9 @@ def main():
 
             # Save satellite coordinates:
             f_out.write(f"{sat_id}\t{start_in_contig}\t{end_in_contig}\n")
+
+            # Save new redacted sample table:
+            f_out_table.write(f"{sat_id}\t{sample_table[sample_table['id'] == sat_id]['type'].values[0]}\t{sample_table[sample_table['id'] == sat_id]['label'].values[0]}\n")
 
             # Write contig to fasta file
             record = SeqRecord(reference_index[seq_origin_id].seq[contig_start:contig_end],
@@ -140,4 +161,4 @@ if __name__ == '__main__':
     # load up the .env entries as environment variables
     load_dotenv(find_dotenv())
 
-    main()
+    sat_contig_sampling()

@@ -1,5 +1,4 @@
 import logging
-import gzip
 import sys
 import subprocess
 from pathlib import Path
@@ -84,8 +83,11 @@ def hmm_predict(input_contigs: Path = Path("data/raw/contigs/test_set/test1.fals
                                     break
                             else:
                                 scores.append(float(line.split()[5]))
+            else:
+                all_scores.append([0])
+            
             if len(scores) == 0:
-                scores.append(0)
+                all_scores.append([0])
             else:
                 all_scores.append(scores)
 

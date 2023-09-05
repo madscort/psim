@@ -1,0 +1,13 @@
+project: "psim"
+dataset: "phage_25_fixed_25000"
+batch_size: 32
+num_workers: 4
+epochs: 100
+
+model:
+  type: "CNN"
+  name: "SequenceNetFlatDropOutBatchNorm"
+
+optimizer:
+  name: "adam"
+  lr: 0.007
