@@ -7,9 +7,7 @@ from sklearn.model_selection import train_test_split
 from Bio import SeqIO
 from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, Dataset, random_split
-from torchvision import datasets, transforms
 
-transform = transforms.Compose([transforms.Resize((128, 128)), transforms.ToTensor()])
 translate = str.maketrans("ACGTURYKMSWBDHVN", "0123444444444444")
 
 class SequenceDataset(Dataset):
@@ -49,17 +47,17 @@ class SequenceDataset(Dataset):
 
         # Load label
         label = self.labels[idx]
-        
-        # sample = dict()
-        # sample['sequence'] = sequence
-        # sample['label'] = label
 
         return sequence, label
 
 
 class FixedLengthSequenceModule(pl.LightningDataModule):
-    def __init__(self, dataset: Path = Path("data/processed/10_datasets/phage_25_fixed_25000"), num_workers: int=1, batch_size: int=68):
+    def __init__(self, dataset: Path = Path("data/processed/10_datasets/phage_25_fixed_25000"),
+                train_indices=None, val_indices=None, test_indices=None, num_workers: int=1, batch_size: int=68):
         super().__init__()
+        self.train_indices = train_indices
+        self.val_indices = val_indices
+        self.test_indices = test_indices
         self.datafolder = Path(dataset, "sequences")
         self.sampletable = Path(dataset, "sampletable.tsv")
         self.num_workers = num_workers
@@ -73,19 +71,23 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         # Load sampletable
         df_sampletable = pd.read_csv(self.sampletable, sep="\t", header=None, names=['id', 'type', 'label'])
         
-        # Stratified split using sklearn 
-        fit, test = train_test_split(df_sampletable, stratify=df_sampletable['type'], test_size=0.1)
-        train, val = train_test_split(fit, stratify=fit['type'], test_size=0.2)
-
-        # Get paths to sequences
+        if self.train_indices is not None and self.val_indices is not None:
+            # Used for cross-validation
+            train = df_sampletable.iloc[self.train_indices]
+            val = df_sampletable.iloc[self.val_indices]
+            test = df_sampletable.iloc[self.test_indices]
+        else:
+            fit, test = train_test_split(df_sampletable, stratify=df_sampletable['type'], test_size=0.1)
+            train, val = train_test_split(fit, stratify=fit['type'], test_size=0.2)
+        
         self.train_sequences = [Path(self.datafolder, f"{id}.fna") for id in train['id'].values]
         self.val_sequences = [Path(self.datafolder, f"{id}.fna") for id in val['id'].values]
         self.test_sequences = [Path(self.datafolder, f"{id}.fna") for id in test['id'].values]
-
-        # Get labels
+        
         self.train_labels = torch.tensor(train['label'].values)
         self.val_labels = torch.tensor(val['label'].values)
         self.test_labels = torch.tensor(test['label'].values)
+        
 
     def train_dataloader(self):
         return DataLoader(SequenceDataset(self.train_sequences, self.train_labels), batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)

@@ -90,4 +90,4 @@ target/
 
 # Project cache
 .tmp/
-models/
+/models/

@@ -1,12 +1,15 @@
 project: "psim"
+
+accelerator: "mps"
+devices: 1
 dataset: "phage_25_fixed_25000"
-batch_size: 32
+batch_size: 16
 num_workers: 4
-epochs: 100
+epochs: 4
 
 model:
   type: "CNN"
-  name: "SequenceNetFlatDropOutBatchNorm"
+  name: "SequenceNetGlobalAvg"
 
 optimizer:
   name: "adam"
