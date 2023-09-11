@@ -33,8 +33,10 @@ def plot_roc_curve(scores, labels, label):
 # File paths for your sets (you can extend this list)
 sets = [
     {"pos": "models/hmm_model/phage_25/prediction/positive/phage_25_pos_hmmsearch_result.tsv", "neg": "models/hmm_model/phage_25/prediction/negative/phage_25_neg_hmmsearch_result.tsv", "label": "0.25"},
-    {"pos": "models/hmm_model/phage_25_reduced_95/prediction/positive/phage_25_reduced_95_pos_hmmsearch_result.tsv", "neg": "models/hmm_model/phage_25_reduced_95/prediction/negative/phage_25_reduced_95_neg_hmmsearch_result.tsv", "label": "0.25_r95"},
     {"pos": "models/hmm_model/phage_25_reduced_90/prediction/positive/phage_25_reduced_90_pos_hmmsearch_result.tsv", "neg": "models/hmm_model/phage_25_reduced_90/prediction/negative/phage_25_reduced_90_neg_hmmsearch_result.tsv", "label": "0.25_r90"},
+    {"pos": "models/hmm_model/phage_25_reduced_90_vfam/prediction/positive/phage_25_reduced_90_vfam_pos_hmmsearch_result.tsv", "neg": "models/hmm_model/phage_25_reduced_90_vfam/prediction/negative/phage_25_reduced_90_vfam_neg_hmmsearch_result.tsv", "label": "0.25_r90_vfam"},
+    {"pos": "models/hmm_model/phage_25_reduced_90_rvdb/prediction/positive/phage_25_reduced_90_rvdb_pos_hmmsearch_result.tsv", "neg": "models/hmm_model/phage_25_reduced_90_rvdb/prediction/negative/phage_25_reduced_90_rvdb_neg_hmmsearch_result.tsv", "label": "0.25_r90_rvdb"},
+    {"pos": "models/hmm_model/phage_25_reduced_90_combined/prediction/positive/phage_25_reduced_90_combined_pos_hmmsearch_result.tsv", "neg": "models/hmm_model/phage_25_reduced_90_combined/prediction/negative/phage_25_reduced_90_combined_neg_hmmsearch_result.tsv", "label": "0.25_r90_combined"},
 ]
 
 if __name__ == "__main__":

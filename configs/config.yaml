@@ -2,14 +2,14 @@ project: "psim"
 
 accelerator: "mps"
 devices: 1
-dataset: "phage_25_fixed_25000"
+dataset: "phage_25_fixed_25000_reduced_90"
 batch_size: 16
 num_workers: 4
-epochs: 4
+epochs: 100
 
 model:
   type: "CNN"
-  name: "SequenceNetGlobalAvg"
+  name: "SequenceNetGlobalDropOut"
 
 optimizer:
   name: "adam"

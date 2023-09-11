@@ -14,16 +14,16 @@ from src.data.vir_contig_sampling import get_viral_contigs, fixed_length_viral_s
 from src.data.meta_contig_sampling import get_meta_contigs, fixed_length_contig_sampling
 
 def create_dataset():
-
+    input = Path("/Users/madsniels/Documents/_DTU/speciale/cpr/code/psim/data/processed/01_combined_renamed/reduced_90")
     root = Path("data/processed/10_datasets")
-    dataset_id = "phage_25_fixed_25000"
+    dataset_id = "phage_25_fixed_25000_reduced_90"
     dataset_root = Path(root, dataset_id)
     tmp = Path(dataset_root, ".tmp")
     tmp.mkdir(parents=True, exist_ok=True)
 
     fixed_length = True
     length = 25000
-    negative_samplesize = 7000
+    negative_samplesize = 2000
 
     # Distribution of negative sample types (metagenomic, phage sequence):
     distribution = (0.75, 0.25)
@@ -32,6 +32,7 @@ def create_dataset():
     sat_contig_sampling(fixed=fixed_length,
                         fixed_length=length,
                         sanity_check=True,
+                        input_root=input,
                         output_root=tmp)
     
     ## Get negative samples

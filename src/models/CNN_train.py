@@ -8,7 +8,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from src.data.LN_data_module import FixedLengthSequenceModule
-from src.models.CNN_basic_collection import SequenceCNN
+from src.models.LNSequenceModule import SequenceModule
 
 @hydra.main(config_path="../../configs", config_name="config", version_base="1.2")
 def main(cfg: DictConfig):
@@ -36,7 +36,7 @@ def main(cfg: DictConfig):
                                name=model_name,
                                group=model_type)
 
-    model = SequenceCNN(model_name,lr=lr, optimizer=optimizer)
+    model = SequenceModule(model_name,lr=lr, optimizer=optimizer)
 
     early_stop_callback = EarlyStopping(
                                         monitor='val_loss',

@@ -12,7 +12,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split
 from src.data.LN_data_module import FixedLengthSequenceModule
-from src.models.CNN_basic_collection import SequenceCNN
+from src.models.CNN_collection import SequenceCNN
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 @hydra.main(config_path="../../configs", config_name="config", version_base="1.2")

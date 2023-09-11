@@ -9,6 +9,7 @@ from dotenv import find_dotenv, load_dotenv
 from Bio import SeqIO
 
 def get_hmms(rerun: bool = False,
+             pfamA: bool = True,
              pfam_hmm: Path = Path("data/external/databases/pfam/pfam_A/Pfam-A.hmm"),
              re_index_pfam: bool = False,
              rep_protein_seqs: Path = Path("data/processed/protein_clusters/test/rep3090DB.fna"),
@@ -17,6 +18,7 @@ def get_hmms(rerun: bool = False,
 
     rerun_all = rerun
     re_index = re_index_pfam
+    pfamA = pfamA
     rep_protein_seqs = rep_protein_seqs
 
     #### Pfam search ####
@@ -73,14 +75,17 @@ def get_hmms(rerun: bool = False,
 
         hmmsearch_parsed_results.unlink(missing_ok=True)
         hmmsearch_accessions.unlink(missing_ok=True)
-
+        
         logging.info(f"Parsing hmmsearch results from {hmmsearch_out.absolute().as_posix()}")
 
         hmm_df = pd.DataFrame(columns=["protein", "pfam", "accession", "e_value", "score"])
 
         grep_cmd = ["grep", "-vE", '^#', f"{hmmsearch_out.absolute().as_posix()}"]
         grep_out = subprocess.Popen(grep_cmd, stdout=subprocess.PIPE)
-        parsed_out = subprocess.check_output(["awk", "-v", "OFS='\t'", '{print $1, $3, $4, $5, $6}'], stdin=grep_out.stdout)
+        if pfamA:
+            parsed_out = subprocess.check_output(["awk", "-v", "OFS='\t'", '{print $1, $3, $4, $5, $6}'], stdin=grep_out.stdout)
+        else:
+            parsed_out = subprocess.check_output(["awk", "-v", "OFS='\t'", '{print $1, $4, $3, $5, $6}'], stdin=grep_out.stdout)
         for line in parsed_out.splitlines():
             parsed_col = line.decode("utf-8").replace("'","").split("\t")
             hmm_df = pd.concat([hmm_df, 
@@ -100,6 +105,7 @@ def get_hmms(rerun: bool = False,
         print(pfam_counts[pfam_counts["protein"] > 1])
 
         # Print protein id and accession for all hits to tsv:
+
         best_hits[["protein", "e_value", "accession"]].to_csv(hmmsearch_parsed_results.absolute().as_posix(), sep="\t", index=False)
         # Print unique accession numbers only to tsv:
         best_hits[["accession"]].drop_duplicates().to_csv(hmmsearch_accessions.absolute().as_posix(), sep="\t", index=False, header=False)

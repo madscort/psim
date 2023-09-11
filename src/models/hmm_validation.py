@@ -19,17 +19,26 @@ def main():
     
     rerun = False
 
+    version_id = "phage_25_reduced_90_combined"
+
     cluster_mode = 1
     cov_mode = 0
     min_cov = 0.8
     min_seq_id = 0.4
 
-    dataset = Path("data/processed/10_datasets/phage_90")
+    phmm_database = Path("data/external/databases/pfam/combined/combined.hmm")
+    
+    # Possible database:
+    # pfamA: Path("data/external/databases/pfam/pfam_A/Pfam-A.hmm")
+    # vfam: Path("data/external/databases/pfam/vfam_A/vFam-A_2014.hmm")
+    # RVDB: Path("data/external/databases/pfam/RVDB/U-RVDBv26.0-prot.hmm")
+    # combined pfamA+RVDB: Path("data/external/databases/pfam/combined/combined.hmm")
+    
+    pfamA = False
+    dataset = Path("data/processed/10_datasets/phage_25_reduced_90")
     sample_table = Path(dataset, "sampletable.tsv")
     all_sequences = Path(dataset, "dataset.fna")
     positive_protein_collection = Path("data/processed/01_combined_renamed/all_proteins.faa")
-
-    version_id = "phage_90"
 
     validation_root = Path("models/hmm_model")
     iteration_root = Path(validation_root, version_id)
@@ -113,6 +122,8 @@ def main():
     # Run get_hmms function:
 
     hmm_profiles = get_hmms(rerun = rerun,
+                            pfamA=pfamA,
+                            pfam_hmm = phmm_database,
                             re_index_pfam = False,
                             rep_protein_seqs = rep_seq,
                             out_prefix = version_id,
