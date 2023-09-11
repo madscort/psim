@@ -14,4 +14,6 @@ torch
 pytorch-lightning
 torchmetrics
 scikit-learn
-hydra
+hydra-core
+dvc
+dvc[gdrive]
