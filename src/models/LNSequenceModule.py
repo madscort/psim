@@ -2,13 +2,12 @@ import torch
 import wandb
 import numpy as np
 import torch.nn as nn
-import torch.nn.functional as F
 import pytorch_lightning as pl
 import CNN_collection as CNN
 import LSTM_collection as LSTM
 
 from torchmetrics.functional import accuracy
-from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score, roc_curve
+from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score
 
 
 MODEL_REGISTRY = {

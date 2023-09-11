@@ -1,14 +1,5 @@
 import torch
-import timm
-import wandb
-import numpy as np
 import torch.nn as nn
-
-import torch.nn.functional as F
-import pytorch_lightning as pl
-from torchmetrics.functional import accuracy
-from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score, roc_curve
-
 
 class SequenceNetGlobalAvg(nn.Module):
     def __init__(self):
@@ -353,51 +344,51 @@ class SequenceNetWithResBlock(nn.Module):
         return x.squeeze(-1)
 
 
-class SequenceEfficientNet(nn.Module):
-    def __init__(self, model_name='efficientnet_b0'):
-        super(SequenceEfficientNet, self).__init__()
+# class SequenceEfficientNet(nn.Module):
+#     def __init__(self, model_name='efficientnet_b0'):
+#         super(SequenceEfficientNet, self).__init__()
 
-        # Load the pre-trained model with timm
-        self.base_model = timm.create_model(model_name, pretrained=False)
+#         # Load the pre-trained model with timm
+#         self.base_model = timm.create_model(model_name, pretrained=False)
 
-        # Fetch the number of in_features from the original first convolutional layer
-        in_features = self.base_model.conv_stem.out_channels
+#         # Fetch the number of in_features from the original first convolutional layer
+#         in_features = self.base_model.conv_stem.out_channels
 
-        # Replace the first convolutional layer to accept 5 channels
-        self.base_model.conv_stem = nn.Conv2d(5, in_features, kernel_size=(1, 3), stride=(1, 2), padding=(0, 1), bias=False)
+#         # Replace the first convolutional layer to accept 5 channels
+#         self.base_model.conv_stem = nn.Conv2d(5, in_features, kernel_size=(1, 3), stride=(1, 2), padding=(0, 1), bias=False)
 
-        # Adjust the final layer to your specific problem (binary classification)
-        self.base_model.classifier = nn.Linear(self.base_model.classifier.in_features, 1)
+#         # Adjust the final layer to your specific problem (binary classification)
+#         self.base_model.classifier = nn.Linear(self.base_model.classifier.in_features, 1)
 
-    def forward(self, x):
-        # Reshape the input to [batch_size, channels, height, width]
-        x = x.unsqueeze(2)  # adds the height dimension
-        return self.base_model(x).squeeze(-1)
+#     def forward(self, x):
+#         # Reshape the input to [batch_size, channels, height, width]
+#         x = x.unsqueeze(2)  # adds the height dimension
+#         return self.base_model(x).squeeze(-1)
 
-class SequenceTimm(nn.Module):
-    def __init__(self, model_name='mobilenetv2_100'):
-        super(SequenceTimm, self).__init__()
+# class SequenceTimm(nn.Module):
+#     def __init__(self, model_name='mobilenetv2_100'):
+#         super(SequenceTimm, self).__init__()
 
-        # Load the pre-trained model with timm
-        self.base_model = timm.create_model(model_name, pretrained=False)
+#         # Load the pre-trained model with timm
+#         self.base_model = timm.create_model(model_name, pretrained=False)
 
-        # Adjust the first convolutional layer to accept 5 channels
-        if hasattr(self.base_model, 'conv_stem'):
-            in_features_stem = self.base_model.conv_stem.out_channels
-            self.base_model.conv_stem = nn.Conv2d(5, in_features_stem, kernel_size=(1, 3), stride=(1, 2), padding=(0, 1), bias=False)
-        elif hasattr(self.base_model, 'conv1'):
-            in_features_conv1 = self.base_model.conv1.out_channels
-            self.base_model.conv1 = nn.Conv2d(5, in_features_conv1, kernel_size=(1, 3), stride=(1, 2), padding=(0, 1), bias=False)
+#         # Adjust the first convolutional layer to accept 5 channels
+#         if hasattr(self.base_model, 'conv_stem'):
+#             in_features_stem = self.base_model.conv_stem.out_channels
+#             self.base_model.conv_stem = nn.Conv2d(5, in_features_stem, kernel_size=(1, 3), stride=(1, 2), padding=(0, 1), bias=False)
+#         elif hasattr(self.base_model, 'conv1'):
+#             in_features_conv1 = self.base_model.conv1.out_channels
+#             self.base_model.conv1 = nn.Conv2d(5, in_features_conv1, kernel_size=(1, 3), stride=(1, 2), padding=(0, 1), bias=False)
 
-        # Fetch the number of in_features from the last fully connected layer and adjust it
-        last_layer_name = 'fc' if hasattr(self.base_model, 'fc') else 'classifier'
-        num_features = getattr(self.base_model, last_layer_name).in_features
-        setattr(self.base_model, last_layer_name, nn.Linear(num_features, 1))
+#         # Fetch the number of in_features from the last fully connected layer and adjust it
+#         last_layer_name = 'fc' if hasattr(self.base_model, 'fc') else 'classifier'
+#         num_features = getattr(self.base_model, last_layer_name).in_features
+#         setattr(self.base_model, last_layer_name, nn.Linear(num_features, 1))
 
-    def forward(self, x):
-        # Reshape the input to [batch_size, channels, height, width]
-        x = x.unsqueeze(2)  # adds the height dimension
-        return self.base_model(x).squeeze(-1)
+#     def forward(self, x):
+#         # Reshape the input to [batch_size, channels, height, width]
+#         x = x.unsqueeze(2)  # adds the height dimension
+#         return self.base_model(x).squeeze(-1)
 
 
 # class InceptionModule(nn.Module):
