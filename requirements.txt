@@ -17,3 +17,4 @@ scikit-learn
 hydra-core
 dvc
 dvc[gdrive]
+biopython
