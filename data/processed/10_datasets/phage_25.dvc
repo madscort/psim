@@ -1,0 +1,6 @@
+outs:
+- md5: 38011b8f104cd2141b8e9b938ea1072a.dir
+  size: 2663602136
+  nfiles: 14283
+  hash: md5
+  path: phage_25

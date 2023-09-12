@@ -1,0 +1,6 @@
+outs:
+- md5: b69f021d7834a174bb42d8feb7aaa3a0.dir
+  size: 289157281
+  nfiles: 3789
+  hash: md5
+  path: phage_25_fixed_25000_reduced_90

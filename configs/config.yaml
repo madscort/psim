@@ -1,5 +1,4 @@
 project: "psim"
-
 accelerator: "mps"
 devices: 1
 dataset: "phage_25_fixed_25000_reduced_90"
@@ -10,6 +9,7 @@ epochs: 100
 model:
   type: "CNN"
   name: "SequenceNetGlobalDropOut"
+  activation_fn: "ReLU"  # default activation function
 
 optimizer:
   name: "adam"

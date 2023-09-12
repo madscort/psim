@@ -9,7 +9,9 @@ parameters:
   batch_size:
     values: [16]
   optimizer:
-    values: ["adam","sgd"]
+    values: ["adam", "sgd"]
+  model.activation_fn:
+    values: ["ReLU", "ELU"] #["ReLU", "LeakyReLU", "PReLU", "ELU"]
 command:
   - ${env}
   - python
