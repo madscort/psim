@@ -15,8 +15,8 @@ MODEL_REGISTRY = {
     'SequenceNetFlat': CNN.SequenceNetFlat,
     'SequenceNetGlobalAvgPool': CNN.SequenceNetGlobalAvgPool,
     'SequenceNetWithResBlock': CNN.SequenceNetWithResBlock,
-    'SequenceEfficientNet': CNN.SequenceEfficientNet,
-    'SequenceTimm': CNN.SequenceTimm,
+    #'SequenceEfficientNet': CNN.SequenceEfficientNet,
+    #'SequenceTimm': CNN.SequenceTimm,
     #'SequenceInception': CNN.SequenceInception,
     'SequenceNetFlatDropOut': CNN.SequenceNetFlatDropOut,
     'SequenceNetFlatCustomDepth': CNN.SequenceNetFlatCustomDepth,
@@ -26,14 +26,15 @@ MODEL_REGISTRY = {
     'SequenceNetGlobalKernel': CNN.SequenceNetGlobalKernel,
     'SequenceNetGlobalInception': CNN.SequenceNetGlobalInception,
     'SequenceNetGlobalInceptionV2': CNN.SequenceNetGlobalInceptionV2,
+    'BasicCNN': CNN.BasicCNN,
     'BasicLSTM': LSTM.BasicLSTM
 }
 
 class SequenceModule(pl.LightningModule):
-    def __init__(self, model, lr=0.001, optimizer='adam', fold_num: int = None):
+    def __init__(self, model, lr=0.001, optimizer='adam', activation_fn='ReLU', alt_dropout_rate=0.1, fc_dropout_rate=0.5, batchnorm=False, fc_num=2, fold_num: int = None, conv_num: int=2, kernel_size: tuple=(3,3,3)):
         super(SequenceModule, self).__init__()
         self.fold_num = fold_num
-        self.model = MODEL_REGISTRY[model]()
+        self.model = MODEL_REGISTRY[model](activation_fn=activation_fn, alt_dropout_rate=alt_dropout_rate, fc_dropout_rate=alt_dropout_rate, batchnorm=batchnorm, fc_num=fc_num, conv_num=conv_num, kernel_size=kernel_size)
         self.criterion = nn.BCEWithLogitsLoss()
         self.lr = lr
         self.optimizer = optimizer
@@ -82,7 +83,6 @@ class SequenceModule(pl.LightningModule):
         y_true = torch.cat([x['y_true'] for x in self.test_outputs], dim=0)
         y_hat = torch.cat([x['y_hat'] for x in self.test_outputs], dim=0)
 
-        print(y_true.shape, y_hat.shape)
         # convert probabilities to predicted labels
         y_pred = (y_hat > 0.5).long()
 
@@ -110,9 +110,9 @@ class SequenceModule(pl.LightningModule):
         if len(y_hat_np.shape) == 1:
             y_hat_np = np.vstack((1-y_hat_np, y_hat_np)).T
         
-        wandb.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
+        self.logger.experiment.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
 
-        wandb.log({"performance": wandb.Table(columns=["accuracy", "f1", "precision", "auc"],
+        self.logger.experiment.log({"performance": wandb.Table(columns=["accuracy", "f1", "precision", "auc"],
                     data=[[acc, f1, precision, auc]])})
 
         del self.test_outputs
@@ -121,8 +121,10 @@ class SequenceModule(pl.LightningModule):
     def configure_optimizers(self):
         if self.optimizer == 'adam':
             optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        elif self.optimizer == 'adamw':
+            optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
         elif self.optimizer == 'sgd':
-            optimizer = torch.optim.SGD(self.parameters(), lr=self.lr)
+            optimizer = torch.optim.SGD(self.parameters(), lr=self.lr, momentum=0.9)
         elif self.optimizer == 'rmsprop':
             optimizer = torch.optim.RMSprop(self.parameters(), lr=self.lr)
         else:
