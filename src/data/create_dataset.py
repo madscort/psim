@@ -59,11 +59,14 @@ def create_dataset():
     # Create sampletable:
     sampletable = Path(dataset_root, "sampletable.tsv")
 
+    sequence_collection = {'meta_contigs': meta_contigs,
+                           'viral_contigs': vir_contigs}
+
     with open(sampletable, "w") as out_f, open(Path(tmp, "sample_table.tsv"), "r") as f:
         for line in f:
             out_f.write(line)
-        for seq_type in [meta_contigs, vir_contigs]:
-            with open(seq_type, "r") as f:
+        for seq_type in sequence_collection:
+            with open(sequence_collection[seq_type], "r") as f:
                 records = list(SeqIO.parse(f, "fasta"))
                 for record in records:
                     out_f.write(f"{record.id}\t{seq_type}\t0\n")

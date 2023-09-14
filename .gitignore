@@ -102,3 +102,5 @@ target/
 /psim/
 /wandb/
 
+.Rproj.user
+/psim.Rproj

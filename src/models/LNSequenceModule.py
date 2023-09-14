@@ -82,7 +82,6 @@ class SequenceModule(pl.LightningModule):
         y_true = torch.cat([x['y_true'] for x in self.test_outputs], dim=0)
         y_hat = torch.cat([x['y_hat'] for x in self.test_outputs], dim=0)
 
-        print(y_true.shape, y_hat.shape)
         # convert probabilities to predicted labels
         y_pred = (y_hat > 0.5).long()
 
@@ -121,6 +120,8 @@ class SequenceModule(pl.LightningModule):
     def configure_optimizers(self):
         if self.optimizer == 'adam':
             optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        elif self.optimizer == 'adamw':
+            optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
         elif self.optimizer == 'sgd':
             optimizer = torch.optim.SGD(self.parameters(), lr=self.lr)
         elif self.optimizer == 'rmsprop':
