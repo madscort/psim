@@ -7,6 +7,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.callbacks import ModelSummary
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
 
@@ -22,6 +23,14 @@ def main(cfg: DictConfig):
     batch_size = cfg.batch_size
     num_workers = cfg.num_workers
     epochs = cfg.epochs
+    activation_fn = cfg.model.activation_fn
+    alt_dropout_rate = cfg.model.alt_dropout_rate
+    fc_dropout_rate = cfg.model.fc_dropout_rate
+    batchnorm = cfg.model.batchnorm
+    fc_num = cfg.model.fc_num
+    conv_num = cfg.model.conv_num
+    kernel_size_1 = cfg.model.kernel_size_1
+    kernel_size_2 = cfg.model.kernel_size_2
     optimizer = cfg.optimizer.name
     lr = cfg.optimizer.lr
     
@@ -36,7 +45,7 @@ def main(cfg: DictConfig):
                                name=model_name,
                                group=model_type)
 
-    model = SequenceModule(model_name,lr=lr, optimizer=optimizer)
+    model = SequenceModule(model_name,lr=lr, optimizer=optimizer, activation_fn=activation_fn, alt_dropout_rate=alt_dropout_rate, fc_dropout_rate=alt_dropout_rate, batchnorm=batchnorm, fc_num=fc_num, conv_num=conv_num, kernel_size=(kernel_size_1,kernel_size_2,3))
 
     early_stop_callback = EarlyStopping(
                                         monitor='val_loss',
@@ -50,7 +59,8 @@ def main(cfg: DictConfig):
                       max_epochs=epochs,
                       logger=wandb_logger,
                       callbacks=[LearningRateMonitor(logging_interval='step'),
-                                 early_stop_callback])
+                                 early_stop_callback,
+                                 ModelSummary(max_depth=10)])
     
     trainer.fit(model, datamodule=data_module)
 

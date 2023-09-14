@@ -6,7 +6,7 @@ class SequenceNetGlobalAvg(nn.Module):
         super(SequenceNetGlobalAvg, self).__init__()
         self.conv1 = nn.Conv1d(in_channels=5, out_channels=16, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
-        self.fc = nn.Linear(32, 1)  # Since global average pooling will be applied
+        self.fc = nn.Linear(32, 1)
         self.relu = nn.ReLU()
     
     def forward(self, x):
@@ -17,7 +17,93 @@ class SequenceNetGlobalAvg(nn.Module):
         x = torch.mean(x, dim=2)  # Global average pooling
         x = self.fc(x)
         return x.squeeze(-1)
-    
+
+
+class SequenceNetGlobalKernel(nn.Module):
+    def __init__(self, conv_dropout_rate=0.1, fc_dropout_rate=0.5, kernel_size=(3, 5)):
+        super(SequenceNetGlobalKernel, self).__init__()
+
+        padding = (kernel_size[0] // 2, kernel_size[1] // 2)
+
+        self.conv1 = nn.Conv1d(in_channels=5, out_channels=16,
+                               kernel_size=kernel_size[0], stride=1, padding=padding[0])
+        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32,
+                               kernel_size=kernel_size[1], stride=1, padding=padding[1])
+        self.fc = nn.Linear(32, 1)
+        self.relu = nn.ReLU()
+        self.dropout_conv = nn.Dropout(conv_dropout_rate)
+        self.dropout = nn.Dropout(fc_dropout_rate)
+        self.bn1 = nn.BatchNorm1d(16)
+        self.bn2 = nn.BatchNorm1d(32)
+
+
+class BasicCNN(nn.Module):
+    def __init__(self, alt_dropout_rate: float=0.1, fc_dropout_rate: float=0.5, activation_fn: str='ReLU', batchnorm: bool=False, fc_num: int=1, conv_num: int=3, kernel_size: tuple=(3, 3, 3)):
+        super(BasicCNN, self).__init__()
+        padding = (kernel_size[0] // 2, kernel_size[1] // 2, kernel_size[2] // 2)
+
+        self.conv1 = nn.Conv1d(in_channels=5, out_channels=16,
+                               kernel_size=kernel_size[0], stride=1, padding=padding[0])
+        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32,
+                               kernel_size=kernel_size[1], stride=1, padding=padding[1])
+        self.conv3 = nn.Conv1d(in_channels=32, out_channels=32,
+                               kernel_size=kernel_size[2], stride=1, padding=padding[2])
+
+        self.fc_pre = nn.Linear(32, 32)
+        self.fc_opt1 = nn.Linear(32, 16)
+        self.fc_opt2 = nn.Linear(16, 1)
+        self.fc = nn.Linear(32, 1)
+        self.activation_fn = getattr(nn, activation_fn)()
+        self.dropout_conv = nn.Dropout(alt_dropout_rate)
+        self.dropout = nn.Dropout(fc_dropout_rate)
+        self.bn1 = nn.BatchNorm1d(16)
+        self.bn2 = nn.BatchNorm1d(32)
+        self.batchnorm = batchnorm
+        self.fc_num = fc_num
+        self.conv_num = conv_num
+
+    def forward(self, x):
+        # Conv1
+        x = self.conv1(x)
+        x = self.activation_fn(x)
+        if self.batchnorm:
+            x = self.bn1(x)
+        x = self.dropout_conv(x)
+        # Conv2
+        x = self.conv2(x)
+        x = self.activation_fn(x)
+        if self.batchnorm:
+            x = self.bn2(x)
+        x = self.dropout_conv(x)
+
+        # 1. optional Conv
+        if self.conv_num > 2:
+            x = self.conv3(x)
+            x = self.activation_fn(x)
+            if self.batchnorm:
+                x = self.bn2(x)
+            x = self.dropout_conv(x)
+
+        # Global avg pooling
+        x = torch.mean(x, dim=2)
+        
+        # 1. optional FC
+        if self.fc_num > 1:
+            x = self.fc_pre(x)
+            x = self.activation_fn(x)
+            x = self.dropout(x)
+        # 2. optional FC
+        if self.fc_num == 3:
+            x = self.fc_opt1(x)
+            x = self.activation_fn(x)
+            x = self.dropout(x)
+            x = self.fc_opt2(x)
+            x = self.dropout(x)
+        else:
+            x = self.fc(x)
+            x = self.dropout(x)
+        return x.squeeze(-1)
+
 class SequenceNetGlobalDropOut(nn.Module):
     def __init__(self, conv_dropout_rate=0.1, fc_dropout_rate=0.5):
         super(SequenceNetGlobalDropOut, self).__init__()

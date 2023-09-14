@@ -1,15 +1,22 @@
 project: "psim"
-accelerator: "mps"
-devices: 1
+accelerator: "cuda"
+devices: -1
 dataset: "phage_25_fixed_25000_reduced_90"
-batch_size: 16
-num_workers: 4
-epochs: 100
+batch_size: 32
+num_workers: 8
+epochs: 30
 
 model:
   type: "CNN"
-  name: "SequenceNetGlobalDropOut"
-  activation_fn: "ReLU"  # default activation function
+  name: "BasicCNN"
+  fc_dropout_rate: 0.0
+  alt_dropout_rate: 0.0
+  fc_num: 4 # number of fully-connected layers after CNN
+  conv_num: 3
+  kernel_size_1: 5
+  kernel_size_2: 7
+  batchnorm: False
+  activation_fn: "ReLU"
 
 optimizer:
   name: "adam"
