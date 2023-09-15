@@ -1,0 +1,35 @@
+name: CNN_super_sweep
+project: psim
+program: src/models/CNN_train.py
+method: bayes
+metric:
+  goal: maximize
+  name: val_acc
+parameters:
+  batch_size:
+    values: [8,16,32,64,128]
+  optimizer.name:
+    values: ["adam", "adamw", "rmsprop"]
+  optimizer.lr:
+    values: [0.01,0.005,0.001]
+  model.fc_dropout_rate:
+    values: [0,0.1,0.25,0.5]
+  model.alt_dropout_rate:
+    values: [0,0.1,0.25,0.5]
+  model.fc_num:
+    values: [1,2,3]
+  model.conv_num:
+    values: [2,3]
+  model.kernel_size_1:
+    values: [3,5,7]
+  model.kernel_size_2:
+    values: [3,5,7]
+  model.batchnorm:
+    values: [True,False]
+  model.activation_fn:
+    values: ["ReLU", "ELU"]
+command:
+  - ${env}
+  - python3
+  - ${program}
+  - ${args_no_hyphens}

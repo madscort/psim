@@ -28,11 +28,18 @@ def main(cfg: DictConfig):
     fc_dropout_rate = cfg.model.fc_dropout_rate
     batchnorm = cfg.model.batchnorm
     fc_num = cfg.model.fc_num
-    conv_num = cfg.model.conv_num
     kernel_size_1 = cfg.model.kernel_size_1
     kernel_size_2 = cfg.model.kernel_size_2
+    kernel_size_3 = cfg.model.kernel_size_3
     optimizer = cfg.optimizer.name
     lr = cfg.optimizer.lr
+    num_inception_layers = cfg.model.num_inception_layers
+    out_channels = cfg.model.out_channels
+    kernel_size_b1 = cfg.model.kernel_size_b1
+    kernel_size_b2 = cfg.model.kernel_size_b2
+    keep_b3 = cfg.model.keep_b3
+    keep_b4 = cfg.model.keep_b4
+    
     
     dataset_root = Path("data/processed/10_datasets/")
     dataset = Path(dataset_root, dataset)
@@ -45,10 +52,25 @@ def main(cfg: DictConfig):
                                name=model_name,
                                group=model_type)
 
-    model = SequenceModule(model_name,lr=lr, optimizer=optimizer, activation_fn=activation_fn, alt_dropout_rate=alt_dropout_rate, fc_dropout_rate=alt_dropout_rate, batchnorm=batchnorm, fc_num=fc_num, conv_num=conv_num, kernel_size=(kernel_size_1,kernel_size_2,3))
+    model = SequenceModule(model_name,
+                            lr=lr,
+                            optimizer=optimizer,
+                            activation_fn=activation_fn,
+                            fc_dropout_rate=alt_dropout_rate,
+                            batchnorm=batchnorm,
+                            fc_num=fc_num,
+                            # BasicCNN only:
+                            alt_dropout_rate=alt_dropout_rate,
+                            kernel_size=(kernel_size_1,kernel_size_2,kernel_size_3),
+                            # Inception only:
+                            num_inception_layers=num_inception_layers,
+                            out_channels=out_channels,
+                            kernel_size_b1=kernel_size_b1,
+                            kernel_size_b2=kernel_size_b2,
+                            keep_b3=keep_b3,
+                            keep_b4=keep_b4)
 
-    early_stop_callback = EarlyStopping(
-                                        monitor='val_loss',
+    early_stop_callback = EarlyStopping(monitor='val_loss',
                                         min_delta=0.00,
                                         patience=5,
                                         verbose=False,
