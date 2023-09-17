@@ -64,7 +64,7 @@ def main(cfg: DictConfig):
                             lr=lr,
                             optimizer=optimizer,
                             activation_fn=activation_fn,
-                            fc_dropout_rate=alt_dropout_rate,
+                            fc_dropout_rate=fc_dropout_rate,
                             batchnorm=batchnorm,
                             fc_num=fc_num,
                             # BasicCNN only:
