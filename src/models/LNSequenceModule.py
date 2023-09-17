@@ -32,8 +32,10 @@ class SequenceModule(pl.LightningModule):
             out_channels: int = 16,
             kernel_size_b1: int = 3,
             kernel_size_b2: int = 5,
-            keep_b3 = True,
-            keep_b4 = True):
+            keep_b3: bool = True,
+            keep_b4: bool = True,
+            hidden_size_lstm: int = 64,
+            num_layers_lstm: int = 1):
         super(SequenceModule, self).__init__()
         self.fold_num = fold_num
         self.model = MODEL_REGISTRY[model](activation_fn=activation_fn,
@@ -47,7 +49,9 @@ class SequenceModule(pl.LightningModule):
             kernel_size_b1=kernel_size_b1,
             kernel_size_b2=kernel_size_b2,
             keep_b3=keep_b3,
-            keep_b4=keep_b4)
+            keep_b4=keep_b4,
+            hidden_size_lstm=hidden_size_lstm,
+            num_layers_lstm=num_layers_lstm)
         self.criterion = nn.BCEWithLogitsLoss()
         self.lr = lr
         self.optimizer = optimizer

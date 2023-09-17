@@ -4,12 +4,16 @@ from pathlib import Path
 from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning import seed_everything
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelSummary
+
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
+
+
 
 @hydra.main(config_path="../../configs", config_name="config", version_base="1.2")
 def main(cfg: DictConfig):
@@ -39,7 +43,10 @@ def main(cfg: DictConfig):
     kernel_size_b2 = cfg.model.kernel_size_b2
     keep_b3 = cfg.model.keep_b3
     keep_b4 = cfg.model.keep_b4
+    hidden_size_lstm = cfg.model.hidden_size_lstm
+    num_layers_lstm = cfg.model.num_layers_lstm
     
+    seed_everything(1)
     
     dataset_root = Path("data/processed/10_datasets/")
     dataset = Path(dataset_root, dataset)
@@ -68,7 +75,10 @@ def main(cfg: DictConfig):
                             kernel_size_b1=kernel_size_b1,
                             kernel_size_b2=kernel_size_b2,
                             keep_b3=keep_b3,
-                            keep_b4=keep_b4)
+                            keep_b4=keep_b4,
+                            # LSTM only
+                            hidden_size_lstm=hidden_size_lstm,
+                            num_layers_lstm=num_layers_lstm)
 
     early_stop_callback = EarlyStopping(monitor='val_loss',
                                         min_delta=0.00,
