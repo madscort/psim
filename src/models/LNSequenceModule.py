@@ -34,7 +34,7 @@ class SequenceModule(pl.LightningModule):
     def __init__(self, model, lr=0.001, optimizer='adam', activation_fn='ReLU', alt_dropout_rate=0.1, fc_dropout_rate=0.5, batchnorm=False, fc_num=2, fold_num: int = None, conv_num: int=2, kernel_size: tuple=(3,3,3)):
         super(SequenceModule, self).__init__()
         self.fold_num = fold_num
-        self.model = MODEL_REGISTRY[model](activation_fn=activation_fn, alt_dropout_rate=alt_dropout_rate, fc_dropout_rate=alt_dropout_rate, batchnorm=batchnorm, fc_num=fc_num, conv_num=conv_num, kernel_size=kernel_size)
+        self.model = MODEL_REGISTRY[model](activation_fn=activation_fn, alt_dropout_rate=alt_dropout_rate, fc_dropout_rate=fc_dropout_rate, batchnorm=batchnorm, fc_num=fc_num, conv_num=conv_num, kernel_size=kernel_size)
         self.criterion = nn.BCEWithLogitsLoss()
         self.lr = lr
         self.optimizer = optimizer

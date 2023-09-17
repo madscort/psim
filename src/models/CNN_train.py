@@ -45,7 +45,7 @@ def main(cfg: DictConfig):
                                name=model_name,
                                group=model_type)
 
-    model = SequenceModule(model_name,lr=lr, optimizer=optimizer, activation_fn=activation_fn, alt_dropout_rate=alt_dropout_rate, fc_dropout_rate=alt_dropout_rate, batchnorm=batchnorm, fc_num=fc_num, conv_num=conv_num, kernel_size=(kernel_size_1,kernel_size_2,3))
+    model = SequenceModule(model_name,lr=lr, optimizer=optimizer, activation_fn=activation_fn, alt_dropout_rate=alt_dropout_rate, fc_dropout_rate=fc_dropout_rate, batchnorm=batchnorm, fc_num=fc_num, conv_num=conv_num, kernel_size=(kernel_size_1,kernel_size_2,3))
 
     early_stop_callback = EarlyStopping(
                                         monitor='val_loss',

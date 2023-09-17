@@ -11,6 +11,8 @@ import pandas as pd
 def check_dataloader_output(dataloader):
     for batch in dataloader:
         inputs, targets = batch
+        print(f"Inputs: {inputs}")
+        print(f"Targets: {targets}")
         print(f"Inputs Shape: {inputs.shape}")
         print(f"Targets Shape: {targets.shape}")
         print(f"Sample Targets: {targets[:5]}")  # Print first 5 targets for inspection.
@@ -18,7 +20,7 @@ def check_dataloader_output(dataloader):
         print(f"New shape: {new.shape}")
         break  # Break after the first batch.
 
-data_module = FixedLengthSequenceModule(num_workers=0)
+data_module = FixedLengthSequenceModule(num_workers=0, return_type="gc_sequence", batch_size=1)
 data_module.setup()
 
 # Check train DataLoader
@@ -34,7 +36,7 @@ if hasattr(data_module, 'val_dataloader') and callable(data_module.val_dataloade
     check_dataloader_output(val_dataloader)
 
 # # Check test DataLoader (if defined in your DataModule)
-# if hasattr(data_module, 'test_dataloader') and callable(data_module.test_dataloader):
-#     test_dataloader = data_module.test_dataloader()
-#     print("\nTest DataLoader:")
-#     check_dataloader_output(test_dataloader)
+if hasattr(data_module, 'test_dataloader') and callable(data_module.test_dataloader):
+    test_dataloader = data_module.test_dataloader()
+    print("\nTest DataLoader:")
+    check_dataloader_output(test_dataloader)
