@@ -59,6 +59,7 @@ def main(cfg: DictConfig):
                                name=model_name,
                                group=model_type)
 
+
     model = SequenceModule(model_name,
                             lr=lr,
                             optimizer=optimizer,

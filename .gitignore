@@ -102,4 +102,9 @@ target/
 /psim/
 /wandb/
 
+# R
+.Rproj.user
+/psim.Rproj
+
+# DTU-HPC logs
 /.BSUBlogs/

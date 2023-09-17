@@ -40,7 +40,7 @@ class SequenceModule(pl.LightningModule):
         self.fold_num = fold_num
         self.model = MODEL_REGISTRY[model](activation_fn=activation_fn,
             alt_dropout_rate=alt_dropout_rate,
-            fc_dropout_rate=alt_dropout_rate,
+            fc_dropout_rate=fc_dropout_rate,
             batchnorm=batchnorm,
             fc_num=fc_num,
             kernel_size=kernel_size,

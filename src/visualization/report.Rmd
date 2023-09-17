@@ -1,0 +1,58 @@
+---
+title: "psim"
+author: "Mads Cort Nielsen"
+date: "2023-09-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyr)
+library(dplyr)
+library(tibble)
+library(readr)
+library(stringr)
+library(ggplot2)
+```
+
+
+
+### Get data
+```{r cars}
+# Original
+samples_original <- read_delim("../../data/processed/10_datasets/phage_25_fixed_25000/sampletable.tsv", col_names = c("sample_id", "type", "label"), col_types = c("c","c","i"))
+
+# Reduced
+samples <- read_delim("../../data/processed/10_datasets/phage_25_fixed_25000_reduced_90/sampletable.tsv", col_names = c("sample_id", "type", "label"), col_types = c("c","c","i"))
+```
+
+## Manipulate
+```{r}
+View(samples)
+
+sum_original <- 
+  samples_original %>% 
+  filter(!str_detect(type, "data")) %>% 
+  group_by(type) %>% 
+  summarise("count_raw" = n())
+
+sum_reduced <-
+  samples %>% 
+  filter(!str_detect(type, "data")) %>% 
+  group_by(type) %>% 
+  summarise("count_reduced_90" = n())
+
+left_join(sum_original, sum_reduced, by = "type") %>% 
+  mutate("fraction" = count_reduced_90/count_raw)
+
+
+```
+
+
+```{r pressure, echo=FALSE}
+sum_reduced %>% 
+  ggplot(aes(type,count_reduced_90)) +
+  geom_col()
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
