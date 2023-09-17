@@ -43,6 +43,7 @@ def main(cfg: DictConfig):
     kernel_size_b2 = cfg.model.kernel_size_b2
     keep_b3 = cfg.model.keep_b3
     keep_b4 = cfg.model.keep_b4
+    model_input_size = cfg.model.input_size
     hidden_size_lstm = cfg.model.hidden_size_lstm
     num_layers_lstm = cfg.model.num_layers_lstm
     
@@ -77,6 +78,7 @@ def main(cfg: DictConfig):
                             kernel_size_b2=kernel_size_b2,
                             keep_b3=keep_b3,
                             keep_b4=keep_b4,
+                            model_input_size=model_input_size,
                             # LSTM only
                             hidden_size_lstm=hidden_size_lstm,
                             num_layers_lstm=num_layers_lstm)

@@ -34,6 +34,7 @@ class SequenceModule(pl.LightningModule):
             kernel_size_b2: int = 5,
             keep_b3: bool = True,
             keep_b4: bool = True,
+            model_input_size: int = 25000,
             hidden_size_lstm: int = 64,
             num_layers_lstm: int = 1):
         super(SequenceModule, self).__init__()
@@ -50,6 +51,7 @@ class SequenceModule(pl.LightningModule):
             kernel_size_b2=kernel_size_b2,
             keep_b3=keep_b3,
             keep_b4=keep_b4,
+            input_size=model_input_size,
             hidden_size_lstm=hidden_size_lstm,
             num_layers_lstm=num_layers_lstm)
         self.criterion = nn.BCEWithLogitsLoss()

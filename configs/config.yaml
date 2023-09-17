@@ -4,7 +4,7 @@ devices: -1
 dataset: "phage_25_fixed_25000_reduced_90"
 batch_size: 32
 num_workers: 8
-epochs: 100
+epochs: 10
 
 model:
   type: "CNNInception"
