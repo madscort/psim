@@ -11,30 +11,47 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_s
 
 
 MODEL_REGISTRY = {
-    'SequenceNetGlobalAvg': CNN.SequenceNetGlobalAvg,
-    'SequenceNetFlat': CNN.SequenceNetFlat,
-    'SequenceNetGlobalAvgPool': CNN.SequenceNetGlobalAvgPool,
-    'SequenceNetWithResBlock': CNN.SequenceNetWithResBlock,
-    #'SequenceEfficientNet': CNN.SequenceEfficientNet,
-    #'SequenceTimm': CNN.SequenceTimm,
-    #'SequenceInception': CNN.SequenceInception,
-    'SequenceNetFlatDropOut': CNN.SequenceNetFlatDropOut,
-    'SequenceNetFlatCustomDepth': CNN.SequenceNetFlatCustomDepth,
-    'SequenceNetFlatDropOutBatchNorm': CNN.SequenceNetFlatDropOutBatchNorm,
-    'SequenceNetGlobalDropOut': CNN.SequenceNetGlobalDropOut,
-    'SequenceNetGlobalDropOutBatchNorm': CNN.SequenceNetGlobalDropOutBatchNorm,
-    'SequenceNetGlobalKernel': CNN.SequenceNetGlobalKernel,
-    'SequenceNetGlobalInception': CNN.SequenceNetGlobalInception,
-    'SequenceNetGlobalInceptionV2': CNN.SequenceNetGlobalInceptionV2,
     'BasicCNN': CNN.BasicCNN,
+    'BasicInception': CNN.BasicInception,
     'BasicLSTM': LSTM.BasicLSTM
 }
 
 class SequenceModule(pl.LightningModule):
-    def __init__(self, model, lr=0.001, optimizer='adam', activation_fn='ReLU', alt_dropout_rate=0.1, fc_dropout_rate=0.5, batchnorm=False, fc_num=2, fold_num: int = None, conv_num: int=2, kernel_size: tuple=(3,3,3)):
+    def __init__(self,
+            model,
+            lr=0.001,
+            optimizer='adam',
+            activation_fn='ReLU',
+            alt_dropout_rate=0.1,
+            fc_dropout_rate=0.5,
+            batchnorm=False,
+            fc_num=2,
+            fold_num: int = None,
+            kernel_size: tuple=(3,3,3),
+            num_inception_layers: int = 1,
+            out_channels: int = 16,
+            kernel_size_b1: int = 3,
+            kernel_size_b2: int = 5,
+            keep_b3: bool = True,
+            keep_b4: bool = True,
+            hidden_size_lstm: int = 64,
+            num_layers_lstm: int = 1):
         super(SequenceModule, self).__init__()
         self.fold_num = fold_num
-        self.model = MODEL_REGISTRY[model](activation_fn=activation_fn, alt_dropout_rate=alt_dropout_rate, fc_dropout_rate=fc_dropout_rate, batchnorm=batchnorm, fc_num=fc_num, conv_num=conv_num, kernel_size=kernel_size)
+        self.model = MODEL_REGISTRY[model](activation_fn=activation_fn,
+            alt_dropout_rate=alt_dropout_rate,
+            fc_dropout_rate=fc_dropout_rate,
+            batchnorm=batchnorm,
+            fc_num=fc_num,
+            kernel_size=kernel_size,
+            num_inception_layers=num_inception_layers,
+            out_channels=out_channels,
+            kernel_size_b1=kernel_size_b1,
+            kernel_size_b2=kernel_size_b2,
+            keep_b3=keep_b3,
+            keep_b4=keep_b4,
+            hidden_size_lstm=hidden_size_lstm,
+            num_layers_lstm=num_layers_lstm)
         self.criterion = nn.BCEWithLogitsLoss()
         self.lr = lr
         self.optimizer = optimizer
