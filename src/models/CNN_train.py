@@ -59,11 +59,12 @@ def main(cfg: DictConfig):
                                name=model_name,
                                group=model_type)
 
+
     model = SequenceModule(model_name,
                             lr=lr,
                             optimizer=optimizer,
                             activation_fn=activation_fn,
-                            fc_dropout_rate=alt_dropout_rate,
+                            fc_dropout_rate=fc_dropout_rate,
                             batchnorm=batchnorm,
                             fc_num=fc_num,
                             # BasicCNN only:
