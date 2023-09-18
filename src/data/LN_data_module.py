@@ -17,25 +17,16 @@ def collate_fn_zip(batch):
     labels = torch.tensor(labels)
     return sequences, labels
 
-def collate_fn_pad_pack(batch):
-    # Sort batch in descending order based on sequence length
+def collate_fn_pad(batch):
     batch = sorted(batch, key=lambda x: x[0].size(0), reverse=True)
-    
-    # Get the sequences and labels separately
     sequences, labels = zip(*batch)
-    
-    # Get the length of each sequence
     lengths = [len(seq) for seq in sequences]
-    
-    # Pad the sequences
     sequences_padded = pad_sequence(sequences, batch_first=True, padding_value=0)
-    
-    # Create packed sequence (if you plan to use this directly in your LSTM layer)
     sequences_packed = pack_padded_sequence(sequences_padded, lengths, batch_first=True)
     
     labels = torch.stack(labels)
 
-    return sequences_packed, lengths, labels
+    return {"seqs": sequences_packed, "lengths": lengths}, labels
 
 
 translate = str.maketrans("ACGTURYKMSWBDHVN", "0123444444444444")
@@ -111,7 +102,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.batch_size = batch_size
         if pad_pack:
-            self.collate_fn = collate_fn_pad_pack
+            self.collate_fn = collate_fn_pad
         else:
             self.collate_fn = collate_fn_zip
 

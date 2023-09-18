@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 
 class BasicLSTM(nn.Module):
     def __init__(self,
@@ -18,9 +19,10 @@ class BasicLSTM(nn.Module):
                 input_size=25000,
                 hidden_size_lstm=64,
                 num_layers_lstm=1,
-                num_classes=1):
+                num_classes=1,
+                pad_pack: bool=False):
         super(BasicLSTM, self).__init__()
-        
+        self.pad_pack = pad_pack
         self.fc_num = fc_num
         self.lstm = nn.LSTM(input_size=input_size, 
                             hidden_size=hidden_size_lstm, 
@@ -34,10 +36,11 @@ class BasicLSTM(nn.Module):
         self.dropout = nn.Dropout(fc_dropout_rate)
         
     def forward(self, x):
-        x, lengths = torch.nn.utils.rnn.pad_packed_sequence(x, batch_first=True)
-        x, _ = self.lstm(x)
-        x = torch.nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True, enforce_sorted=False)
-        x, _ = torch.nn.utils.rnn.pad_packed_sequence(x, batch_first=True)
+        if self.pad_pack:
+            x, _ = self.lstm(x["seqs"])
+            x, _ = torch.nn.utils.rnn.pad_packed_sequence(x, batch_first=True)
+        else:
+            x, _ = self.lstm(x)
         x = torch.mean(x, dim=1)
         if self.fc_num == 2:
             x = self.fc_pre(x)

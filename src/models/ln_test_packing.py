@@ -51,7 +51,7 @@ model = BasicLSTM(input_size=1)
 
 # Initialize an instance of BasicLSTM and perform a forward pass test on the first batch of the train dataloader
 for batch in train_dataloader:
-    sequences_packed, lengths, labels = batch
+    sequences_packed, labels = batch
     outputs = model(sequences_packed)
     print(f"Model outputs: {outputs}")
     break

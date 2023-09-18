@@ -46,14 +46,18 @@ def main(cfg: DictConfig):
     model_input_size = cfg.model.input_size
     hidden_size_lstm = cfg.model.hidden_size_lstm
     num_layers_lstm = cfg.model.num_layers_lstm
+    dataset_return_type = cfg.data.return_type
+    pad_pack = cfg.data.pad_pack
     
     seed_everything(1)
     
     dataset_root = Path("data/processed/10_datasets/")
     dataset = Path(dataset_root, dataset)
     data_module = FixedLengthSequenceModule(dataset=dataset,
+                                            return_type=dataset_return_type,
                                             num_workers=num_workers,
-                                            batch_size=batch_size)
+                                            batch_size=batch_size,
+                                            pad_pack=pad_pack)
     wandb_logger = WandbLogger(project=project,
                                config=OmegaConf.to_container(cfg,
                                                              resolve=True),
@@ -80,6 +84,7 @@ def main(cfg: DictConfig):
                             keep_b4=keep_b4,
                             model_input_size=model_input_size,
                             # LSTM only
+                            pad_pack=pad_pack,
                             hidden_size_lstm=hidden_size_lstm,
                             num_layers_lstm=num_layers_lstm)
 

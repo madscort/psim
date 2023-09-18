@@ -34,6 +34,7 @@ class SequenceModule(pl.LightningModule):
             kernel_size_b2: int = 5,
             keep_b3: bool = True,
             keep_b4: bool = True,
+            pad_pack: bool = False,
             model_input_size: int = 25000,
             hidden_size_lstm: int = 64,
             num_layers_lstm: int = 1):
@@ -51,6 +52,7 @@ class SequenceModule(pl.LightningModule):
             kernel_size_b2=kernel_size_b2,
             keep_b3=keep_b3,
             keep_b4=keep_b4,
+            pad_pack=pad_pack,
             input_size=model_input_size,
             hidden_size_lstm=hidden_size_lstm,
             num_layers_lstm=num_layers_lstm)
@@ -68,11 +70,11 @@ class SequenceModule(pl.LightningModule):
         if self.fold_num is not None:
             wandb.log({f"train_CV{self.fold_num}_loss" : loss,
                        f"train_CV{self.fold_num}_acc" : acc})
-            self.log('train_loss', loss, logger=False)
-            self.log('train_acc', acc, prog_bar=True, logger=False)
+            self.log('train_loss', loss, logger=False, batch_size=batch[1].shape[0])
+            self.log('train_acc', acc, prog_bar=True, logger=False, batch_size=batch[1].shape[0])
         else:
-            self.log('train_loss', loss)
-            self.log('train_acc', acc, prog_bar=True)
+            self.log('train_loss', loss, batch_size=batch[1].shape[0])
+            self.log('train_acc', acc, prog_bar=True, batch_size=batch[1].shape[0])
         return loss
     
     def validation_step(self, batch, batch_idx):
@@ -80,11 +82,11 @@ class SequenceModule(pl.LightningModule):
         if self.fold_num is not None:
             wandb.log({f"val_CV{self.fold_num}_loss" : loss,
                        f"val_CV{self.fold_num}_acc" : acc})
-            self.log('val_loss', loss, logger=False)
-            self.log('val_acc', acc, prog_bar=True, logger=False)
+            self.log('val_loss', loss, logger=False, batch_size=batch[1].shape[0])
+            self.log('val_acc', acc, prog_bar=True, logger=False, batch_size=batch[1].shape[0])
         else:
-            self.log('val_loss', loss, prog_bar=True)
-            self.log('val_acc', acc, prog_bar=True)
+            self.log('val_loss', loss, prog_bar=True, batch_size=batch[1].shape[0])
+            self.log('val_acc', acc, prog_bar=True, batch_size=batch[1].shape[0])
         return preds
     
     def test_step(self, batch, batch_idx):

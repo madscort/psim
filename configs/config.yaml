@@ -1,18 +1,23 @@
 project: "psim"
-accelerator: "cuda"
+accelerator: "gpu"
 devices: -1
 dataset: "phage_25_fixed_25000_reduced_90"
-batch_size: 32
+batch_size: 16
 num_workers: 8
 epochs: 10
 
+data:
+  # LSTM only
+  return_type: "gc_sequence" # "fna"
+  pad_pack: True # Necessary when working with non-fixed length seqs.
+
 model:
-  type: "CNNInception"
-  name: "BasicInception"
+  type: "LSTM"
+  name: "BasicLSTM"
   fc_dropout_rate: 0.5
   batchnorm: False
   activation_fn: "ReLU"
-  fc_num: 3 # number of fully-connected layers after CNN
+  fc_num: 1 # number of fully-connected layers after CNN/LSTM
   
   # Basic CNN only
   alt_dropout_rate: 0.0 # dropout on CNNs
@@ -27,6 +32,11 @@ model:
   kernel_size_b2: 3
   keep_b3: False
   keep_b4: True
+
+  # LSTM only
+  input_size: 1 # Sequence feature length
+  hidden_size_lstm: 2
+  num_layers_lstm: 2
 
 optimizer:
   name: "adamw"
