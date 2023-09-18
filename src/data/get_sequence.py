@@ -9,7 +9,33 @@ def get_gene_gc_sequence(fna_file: Path = Path("data/processed/10_datasets/phage
 
     input_sequence_file = fna_file
     output = list()
-    pyro = pyrodigal.OrfFinder(meta=True)
+    pyro = pyrodigal.GeneFinder(meta=True)
+    
+    with open(input_sequence_file, 'r') as f:
+        contig = SeqIO.parse(f, "fasta").__next__()
+        for n, gene in enumerate(pyro.find_genes(bytes(contig.seq))):
+            output.append(gene.gc_cont)
+    return output
+
+def get_protein_seq(fna_file: Path = Path("data/processed/10_datasets/phage_25_reduced_90/sequences/PS_U370.fna")):
+    """ Takes a fna file and returns seq object of proteins."""
+
+    input_sequence_file = fna_file
+    output = list()
+    pyro = pyrodigal.GeneFinder(meta=True)
+    
+    with open(input_sequence_file, 'r') as f:
+        contig = SeqIO.parse(f, "fasta").__next__()
+        for n, gene in enumerate(pyro.find_genes(bytes(contig.seq))):
+            output.append(gene.translate())
+    return output
+
+def get_clusters(fna_file: Path = Path("data/processed/10_datasets/phage_25_reduced_90/sequences/PS_U370.fna")):
+    """ Takes a fasta file and returns a list of GC contents for each gene."""
+
+    input_sequence_file = fna_file
+    output = list()
+    pyro = pyrodigal.GeneFinder(meta=True)
     
     with open(input_sequence_file, 'r') as f:
         contig = SeqIO.parse(f, "fasta").__next__()
@@ -28,4 +54,4 @@ if __name__ == '__main__':
     # load up the .env entries as environment variables
     load_dotenv(find_dotenv())
 
-    get_gene_gc_sequence()
+    get_protein_seq()
