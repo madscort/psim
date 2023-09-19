@@ -20,10 +20,16 @@ class BasicLSTM(nn.Module):
                 hidden_size_lstm=64,
                 num_layers_lstm=1,
                 num_classes=1,
-                pad_pack: bool=False):
+                pad_pack: bool=False,
+                embedding_dim=None,
+                vocab_size=5):
         super(BasicLSTM, self).__init__()
         self.pad_pack = pad_pack
         self.fc_num = fc_num
+        self.embedding_dim = embedding_dim
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        if self.embedding_dim is not None:
+            input_size = embedding_dim
         self.lstm = nn.LSTM(input_size=input_size, 
                             hidden_size=hidden_size_lstm, 
                             num_layers=num_layers_lstm, 
@@ -37,7 +43,12 @@ class BasicLSTM(nn.Module):
         
     def forward(self, x):
         if self.pad_pack:
-            x, _ = self.lstm(x["seqs"])
+            lengths = x["lengths"]
+            x = x["seqs"]
+            if self.embedding_dim is not None:
+                x = self.embedding(x)
+            x = pack_padded_sequence(x, lengths, batch_first=True)
+            x, _ = self.lstm(x)
             x, _ = torch.nn.utils.rnn.pad_packed_sequence(x, batch_first=True)
         else:
             x, _ = self.lstm(x)

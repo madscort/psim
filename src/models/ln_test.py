@@ -13,14 +13,20 @@ def check_dataloader_output(dataloader):
         inputs, targets = batch
         print(f"Inputs: {inputs}")
         print(f"Targets: {targets}")
-        print(f"Inputs Shape: {inputs.shape}")
-        print(f"Targets Shape: {targets.shape}")
-        print(f"Sample Targets: {targets[:5]}")  # Print first 5 targets for inspection.
-        new = inputs.view(inputs.size(0), -1, 4)
-        print(f"New shape: {new.shape}")
-        break  # Break after the first batch.
+        # print(f"Inputs Shape: {torch.tensor(inputs).shape}")
+        # print(f"Inputs Shape: {inputs.shape}")
+        # print(f"Targets Shape: {targets.shape}")
+        # print(f"Sample Targets: {targets[:5]}")  # Print first 5 targets for inspection.
+        # new = inputs.view(inputs.size(0), -1, 4)
+        # print(f"New shape: {new.shape}")
+         # Break after the first batch.
 
-data_module = FixedLengthSequenceModule(num_workers=0, return_type="gc_sequence", batch_size=1)
+data_module = FixedLengthSequenceModule(num_workers=0,
+                                        return_type="hmm_match_sequence",
+                                        batch_size=2,
+                                        dataset=Path("data/processed/10_datasets/phage_25_fixed_25000_reduced_90_ws"),
+                                        use_saved=True,
+                                        pad_pack=True)
 data_module.setup()
 
 # Check train DataLoader

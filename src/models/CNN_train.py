@@ -1,5 +1,6 @@
 import hydra
 import wandb
+import sys
 from pathlib import Path
 from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
@@ -48,6 +49,8 @@ def main(cfg: DictConfig):
     num_layers_lstm = cfg.model.num_layers_lstm
     dataset_return_type = cfg.data.return_type
     pad_pack = cfg.data.pad_pack
+    use_saved = cfg.data.use_saved
+    embedding_dim = cfg.model.embedding_dim
     
     seed_everything(1)
     
@@ -57,14 +60,15 @@ def main(cfg: DictConfig):
                                             return_type=dataset_return_type,
                                             num_workers=num_workers,
                                             batch_size=batch_size,
-                                            pad_pack=pad_pack)
+                                            pad_pack=pad_pack,
+                                            use_saved=use_saved)
     wandb_logger = WandbLogger(project=project,
                                config=OmegaConf.to_container(cfg,
                                                              resolve=True),
                                name=model_name,
                                group=model_type)
 
-
+    data_module.setup()
     model = SequenceModule(model_name,
                             lr=lr,
                             optimizer=optimizer,
@@ -86,7 +90,9 @@ def main(cfg: DictConfig):
                             # LSTM only
                             pad_pack=pad_pack,
                             hidden_size_lstm=hidden_size_lstm,
-                            num_layers_lstm=num_layers_lstm)
+                            num_layers_lstm=num_layers_lstm,
+                            embedding_dim=embedding_dim,
+                            vocab_size=data_module.vocab_size)
 
     early_stop_callback = EarlyStopping(monitor='val_loss',
                                         min_delta=0.00,

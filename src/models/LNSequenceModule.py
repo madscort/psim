@@ -37,7 +37,9 @@ class SequenceModule(pl.LightningModule):
             pad_pack: bool = False,
             model_input_size: int = 25000,
             hidden_size_lstm: int = 64,
-            num_layers_lstm: int = 1):
+            num_layers_lstm: int = 1,
+            embedding_dim: int = None,
+            vocab_size: int = 5):
         super(SequenceModule, self).__init__()
         self.fold_num = fold_num
         self.model = MODEL_REGISTRY[model](activation_fn=activation_fn,
@@ -55,7 +57,9 @@ class SequenceModule(pl.LightningModule):
             pad_pack=pad_pack,
             input_size=model_input_size,
             hidden_size_lstm=hidden_size_lstm,
-            num_layers_lstm=num_layers_lstm)
+            num_layers_lstm=num_layers_lstm,
+            embedding_dim=embedding_dim,
+            vocab_size=vocab_size)
         self.criterion = nn.BCEWithLogitsLoss()
         self.lr = lr
         self.optimizer = optimizer

@@ -16,7 +16,7 @@ from src.data.meta_contig_sampling import get_meta_contigs, fixed_length_contig_
 def create_dataset():
     input = Path("/Users/madsniels/Documents/_DTU/speciale/cpr/code/psim/data/processed/01_combined_renamed/reduced_90")
     root = Path("data/processed/10_datasets")
-    dataset_id = "phage_25_fixed_25000_reduced_90"
+    dataset_id = "phage_25_fixed_25000_reduced_90_ws"
     dataset_root = Path(root, dataset_id)
     tmp = Path(dataset_root, ".tmp")
     tmp.mkdir(parents=True, exist_ok=True)
@@ -86,7 +86,12 @@ def create_dataset():
         with open(Path(sequences, f"{record.id}.fna"), "w") as out_f:
             SeqIO.write(record, out_f, "fasta")
 
-
+    # Create a folder with a file per raw satellite sequence:
+    sat_sequences = Path(dataset_root, "satellite_sequences")
+    sat_sequences.mkdir(parents=True, exist_ok=True)
+    for record in SeqIO.parse(Path(input) / "all_sequences.fna", "fasta"):
+        with open(Path(sat_sequences, f"{record.id}.fna"), "w") as out_f:
+            SeqIO.write(record, out_f, "fasta")
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

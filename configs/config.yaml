@@ -1,15 +1,16 @@
 project: "psim"
 accelerator: "gpu"
 devices: -1
-dataset: "phage_25_fixed_25000_reduced_90"
+dataset: "phage_25_fixed_25000_reduced_90_ws"
 batch_size: 16
 num_workers: 8
-epochs: 10
+epochs: 1
 
 data:
   # LSTM only
-  return_type: "gc_sequence" # "fna"
+  return_type: "hmm_match_sequence" # "fna"
   pad_pack: True # Necessary when working with non-fixed length seqs.
+  use_saved: True # Use pickled input if available.
 
 model:
   type: "LSTM"
@@ -34,9 +35,10 @@ model:
   keep_b4: True
 
   # LSTM only
-  input_size: 1 # Sequence feature length
+  input_size: 1 # Sequence feature length. Set automatically if embeddinglayer.
   hidden_size_lstm: 2
-  num_layers_lstm: 2
+  num_layers_lstm: 1
+  embedding_dim: 5 # Set to None if not using embedding layer.
 
 optimizer:
   name: "adamw"
