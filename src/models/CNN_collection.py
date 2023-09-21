@@ -18,14 +18,19 @@ class BasicCNN(nn.Module):
                 input_size=25000,
                 hidden_size_lstm=64,
                 num_layers_lstm=1,
-                num_classes=1):
+                num_classes=1,
+                pad_pack: bool=False,
+                embedding_dim=None,
+                vocab_size=5):
         super(BasicCNN, self).__init__()
         
         padding = (kernel_size[0] // 2, kernel_size[1] // 2, kernel_size[2] // 2)
         
         self.kernel_size = kernel_size
         self.conv1 = nn.Conv1d(in_channels=5, out_channels=16,
-                               kernel_size=kernel_size[0], stride=1, padding=padding[0])
+                               kernel_size=kernel_size[0],
+                               stride=1,
+                               padding=padding[0])
         self.conv2 = nn.Conv1d(in_channels=16, out_channels=32,
                                kernel_size=kernel_size[1], stride=1, padding=padding[1])
         if kernel_size[2] > 0:
@@ -34,8 +39,8 @@ class BasicCNN(nn.Module):
 
         self.fc_pre = nn.Linear(32, 32)
         self.fc_opt1 = nn.Linear(32, 16)
-        self.fc_opt2 = nn.Linear(16, 1)
-        self.fc = nn.Linear(32, 1)
+        self.fc_opt2 = nn.Linear(16, 2)
+        self.fc = nn.Linear(32, 2)
         self.activation_fn = getattr(nn, activation_fn)()
         self.dropout_conv = nn.Dropout(alt_dropout_rate)
         self.dropout = nn.Dropout(fc_dropout_rate)
@@ -43,6 +48,36 @@ class BasicCNN(nn.Module):
         self.bn2 = nn.BatchNorm1d(32)
         self.batchnorm = batchnorm
         self.fc_num = fc_num
+
+        self.feature_maps = {}
+        self._register_hooks()
+
+        # placeholder for the gradients
+        self.gradients = None
+
+    def _register_hooks(self):
+        for name, layer in self.named_children():
+            if isinstance(layer, nn.Conv1d):  # Adjust as necessary to match the layers you're interested in
+                layer.register_forward_hook(self._hook_fn(name))
+
+    def _hook_fn(self, name):
+        def hook(module, input, output):
+            self.feature_maps[name] = output
+        return hook
+    
+    # GRAD CAM - hook for the gradients of the activations
+    def activations_hook(self, grad):
+        self.gradients = grad
+
+    def get_activations_gradient(self):
+        return self.gradients
+    
+    def get_activations(self, x):
+        # Conv1
+        x = self.conv1(x)
+        x = self.conv2(x)
+        return x
+    # --
 
     def forward(self, x):
         # Conv1
@@ -54,6 +89,11 @@ class BasicCNN(nn.Module):
         # Conv2
         x = self.conv2(x)
         x = self.activation_fn(x)
+        
+        # GRAD CAM - Register hook (if conv2 is last)
+        if x.requires_grad:
+            h = x.register_hook(self.activations_hook)
+        
         if self.batchnorm:
             x = self.bn2(x)
         x = self.dropout_conv(x)
@@ -84,25 +124,8 @@ class BasicCNN(nn.Module):
         else:
             x = self.fc(x)
             x = self.dropout(x)
-        return x.squeeze(-1)
-
-class SequenceNetGlobalInception(nn.Module):
-    def __init__(self, conv_dropout_rate=0.1, fc_dropout_rate=0.5):
-        super(SequenceNetGlobalInception, self).__init__()
-        
-        self.inception1 = InceptionModule(in_channels=5, out_channels=16)
-
-        self.fc = nn.Linear(48, 1)  # Adjust the input dimension as per the inception module output
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(fc_dropout_rate)
-    
-    def forward(self, x):
-        x = self.inception1(x)
-
-        x = torch.mean(x, dim=2)  # Global average pooling
-        x = self.fc(x)
-        x = self.dropout(x)
-        return x.squeeze(-1)
+        x = torch.softmax(x, dim=1)
+        return x
 
 
 class BasicInception(nn.Module):
@@ -122,7 +145,10 @@ class BasicInception(nn.Module):
                 input_size=25000,
                 hidden_size_lstm=64,
                 num_layers_lstm=1,
-                num_classes=1):
+                num_classes=1,
+                pad_pack: bool=False,
+                embedding_dim=None,
+                vocab_size=5):
         super(BasicInception, self).__init__()
         
         self.activation_fn = getattr(nn, activation_fn)()
@@ -166,7 +192,8 @@ class BasicInception(nn.Module):
         else:
             x = self.fc(x)
             x = self.dropout(x)
-        return x.squeeze(-1)
+        x = torch.softmax(x, dim=1)
+        return x
 
 
 

@@ -1,20 +1,20 @@
 project: "psim"
 accelerator: "gpu"
 devices: -1
-dataset: "phage_25_fixed_25000_reduced_90_ws"
+dataset: "phage_25_fixed_25000_reduced_90"
 batch_size: 16
 num_workers: 8
-epochs: 1
+epochs: 100
 
 data:
   # LSTM only
-  return_type: "hmm_match_sequence" # "fna"
-  pad_pack: True # Necessary when working with non-fixed length seqs.
-  use_saved: True # Use pickled input if available.
+  return_type: "fna" # "fna"
+  pad_pack: False # Necessary when working with non-fixed length seqs.
+  use_saved: False # Use pickled input if available.
 
 model:
-  type: "LSTM"
-  name: "BasicLSTM"
+  type: "CNN"
+  name: "BasicCNN"
   fc_dropout_rate: 0.5
   batchnorm: False
   activation_fn: "ReLU"
@@ -38,7 +38,7 @@ model:
   input_size: 1 # Sequence feature length. Set automatically if embeddinglayer.
   hidden_size_lstm: 2
   num_layers_lstm: 1
-  embedding_dim: 5 # Set to None if not using embedding layer.
+  embedding_dim: 10 # Set to None if not using embedding layer.
 
 optimizer:
   name: "adamw"

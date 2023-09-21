@@ -1,0 +1,20 @@
+project: "psim_captum"
+accelerator: "gpu"
+devices: -1
+dataset: "phage_25_fixed_25000_reduced_90"
+batch_size: 16
+num_workers: 8
+epochs: 100
+
+data:
+  return_type: "fna" # "fna"
+  pad_pack: False # Necessary when working with non-fixed length seqs.
+  use_saved: False # Use pickled input if available.
+
+model:
+  type: "CNN"
+  name: "captumCNN"
+
+optimizer:
+  name: "adamw"
+  lr: 0.007

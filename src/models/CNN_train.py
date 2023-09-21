@@ -14,8 +14,6 @@ from pytorch_lightning.callbacks import ModelSummary
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
 
-
-
 @hydra.main(config_path="../../configs", config_name="config", version_base="1.2")
 def main(cfg: DictConfig):
     
@@ -92,25 +90,28 @@ def main(cfg: DictConfig):
                             hidden_size_lstm=hidden_size_lstm,
                             num_layers_lstm=num_layers_lstm,
                             embedding_dim=embedding_dim,
-                            vocab_size=data_module.vocab_size)
-
-    early_stop_callback = EarlyStopping(monitor='val_loss',
-                                        min_delta=0.00,
-                                        patience=5,
-                                        verbose=False,
-                                        mode='min')
-                                            
-    trainer = Trainer(accelerator=accelerator,
-                      devices=devices,
-                      max_epochs=epochs,
-                      logger=wandb_logger,
-                      callbacks=[LearningRateMonitor(logging_interval='step'),
-                                 early_stop_callback,
-                                 ModelSummary(max_depth=10)])
+                            vocab_size=data_module.vocab_size).load_from_checkpoint("psim/80ohj6m3/checkpoints/epoch=50-step=8721.ckpt")
+    model.eval()
     
-    trainer.fit(model, datamodule=data_module)
 
-    trainer.test(model, datamodule=data_module)
+
+    # early_stop_callback = EarlyStopping(monitor='val_loss',
+    #                                     min_delta=0.00,
+    #                                     patience=5,
+    #                                     verbose=False,
+    #                                     mode='min')
+                                            
+    # trainer = Trainer(accelerator=accelerator,
+    #                   devices=devices,
+    #                   max_epochs=epochs,
+    #                   logger=wandb_logger,
+    #                   callbacks=[LearningRateMonitor(logging_interval='step'),
+    #                              early_stop_callback,
+    #                              ModelSummary(max_depth=10)])
+    
+    # trainer.fit(model, datamodule=data_module)
+
+    # trainer.test(model, datamodule=data_module)
 
     wandb.finish()
 

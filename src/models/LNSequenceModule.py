@@ -1,5 +1,6 @@
 import torch
 import wandb
+import matplotlib.pyplot as plt
 import numpy as np
 import torch.nn as nn
 import pytorch_lightning as pl
@@ -8,7 +9,6 @@ import LSTM_collection as LSTM
 
 from torchmetrics.functional import accuracy
 from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score
-
 
 MODEL_REGISTRY = {
     'BasicCNN': CNN.BasicCNN,
@@ -60,7 +60,7 @@ class SequenceModule(pl.LightningModule):
             num_layers_lstm=num_layers_lstm,
             embedding_dim=embedding_dim,
             vocab_size=vocab_size)
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.CrossEntropyLoss()
         self.lr = lr
         self.optimizer = optimizer
         self.test_y_hat = []
@@ -95,7 +95,7 @@ class SequenceModule(pl.LightningModule):
     
     def test_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = torch.sigmoid(self(x))
+        y_hat = torch.softmax(self(x), dim=1)
 
         if not hasattr(self, 'test_outputs'):
             self.test_outputs = []
@@ -103,13 +103,29 @@ class SequenceModule(pl.LightningModule):
 
         return {'y_true': y, 'y_hat': y_hat}
 
+    # def on_train_epoch_end(self):
+    #     for i, (layer_name, fmap) in enumerate(self.model.feature_maps.items()):
+    #         for j in range(fmap.shape[1]):  # Looping over channels
+    #             fmap_values = fmap[i, j].cpu().detach().numpy()
+    #             bin_size=10
+    #             binned_fmap = fmap_values[:(fmap_values.size // bin_size) * bin_size].reshape(-1, bin_size).mean(axis=1)
+    #             data = [[x, y] for x, y in enumerate(binned_fmap)]
+    #             table = wandb.Table(data=data, columns=["pos", "act"])
+    #             self.logger.experiment.log(
+    #                 {
+    #                     f"Layer_{i}/Channel_{j}": wandb.plot.line(
+    #                         table, "pos", "act", title=f"Layer_{i}/Channel_{j}"
+    #                     )
+    #                 }
+    #             )
+
     def on_test_epoch_end(self):
         # concatenate all y_true and y_hat from outputs of test_step
         y_true = torch.cat([x['y_true'] for x in self.test_outputs], dim=0)
         y_hat = torch.cat([x['y_hat'] for x in self.test_outputs], dim=0)
 
         # convert probabilities to predicted labels
-        y_pred = (y_hat > 0.5).long()
+        y_pred = torch.argmax(y_hat, dim=1)
 
         y_true = y_true.cpu()
         y_pred = y_pred.cpu()
@@ -131,9 +147,9 @@ class SequenceModule(pl.LightningModule):
         y_true_np = y_true.numpy()
         y_hat_np = y_hat.numpy()
 
-        # If y_hat_np is a 1D array, reshape it to a 2D array with 2 columns
-        if len(y_hat_np.shape) == 1:
-            y_hat_np = np.vstack((1-y_hat_np, y_hat_np)).T
+        # # If y_hat_np is a 1D array, reshape it to a 2D array with 2 columns
+        # if len(y_hat_np.shape) == 1:
+        #     y_hat_np = np.vstack((1-y_hat_np, y_hat_np)).T
         
         self.logger.experiment.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
 
@@ -163,7 +179,7 @@ class SequenceModule(pl.LightningModule):
         '''convenience function since train/valid/test steps are similar'''
         x, y = batch
         logits = self(x)
-        preds = (torch.sigmoid(logits) > 0.5).long()
-        loss = self.criterion(logits, y.float())
+        preds = torch.argmax(logits, dim=1)
+        loss = self.criterion(logits, y)
         acc = accuracy(preds, y, 'binary')
         return preds, loss, acc

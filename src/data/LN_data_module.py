@@ -12,12 +12,6 @@ from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 from src.data.get_sequence import get_gene_gc_sequence, get_marker_hmms, get_marker_match_sequence
 
-# Collate function for non-LSTM
-def collate_fn_zip(batch):
-    sequences, labels = zip(*batch)
-    labels = torch.tensor(labels)
-    return sequences, labels
-
 def collate_fn_pad(batch):
     if isinstance(batch[0][0], list):
         batch = sorted(batch, key=lambda x: len(x[0]), reverse=True)
@@ -130,7 +124,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         if pad_pack:
             self.collate_fn = collate_fn_pad
         else:
-            self.collate_fn = collate_fn_zip
+            self.collate_fn = None
 
         match self.return_type:
             case "fna":
