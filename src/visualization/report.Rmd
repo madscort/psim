@@ -24,6 +24,10 @@ samples_original <- read_delim("../../data/processed/10_datasets/phage_25_fixed_
 
 # Reduced
 samples <- read_delim("../../data/processed/10_datasets/phage_25_fixed_25000_reduced_90/sampletable.tsv", col_names = c("sample_id", "type", "label"), col_types = c("c","c","i"))
+
+# MMseqs2 protein clusters in training split
+clusters <- read_delim("../../models/hmm_model/phage_25_reduced_90/pan_proteins/cluster/phage_25_reduced_90.tsv", col_names = c("protein_rep", "protein_id"), delim = "\t")
+
 ```
 
 ## Manipulate
@@ -55,4 +59,16 @@ sum_reduced %>%
   geom_col()
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+cluster_sizes <-
+  clusters %>% 
+  group_by(protein_rep) %>% 
+  summarise("cluster_size" = n()) %>% 
+  arrange(desc(cluster_size))
+cluster_sizes
+```
+
+```{r}
+
+```
+
