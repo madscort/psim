@@ -4,7 +4,7 @@ devices: -1
 dataset: "phage_25_fixed_25000_reduced_90_ws"
 batch_size: 16
 num_workers: 8
-epochs: 1
+epochs: 30
 
 data:
   # LSTM only
@@ -13,8 +13,8 @@ data:
   use_saved: True # Use pickled input if available.
 
 model:
-  type: "LSTM"
-  name: "BasicLSTM"
+  type: "Transformer"
+  name: "BasicTransformer"
   fc_dropout_rate: 0.5
   batchnorm: False
   activation_fn: "ReLU"

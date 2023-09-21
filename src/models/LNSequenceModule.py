@@ -5,6 +5,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 import CNN_collection as CNN
 import LSTM_collection as LSTM
+import Transformer_collection as Transformers
 
 from torchmetrics.functional import accuracy
 from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score
@@ -13,7 +14,8 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_s
 MODEL_REGISTRY = {
     'BasicCNN': CNN.BasicCNN,
     'BasicInception': CNN.BasicInception,
-    'BasicLSTM': LSTM.BasicLSTM
+    'BasicLSTM': LSTM.BasicLSTM,
+    'BasicTransformer': Transformers.BasicTransformer
 }
 
 class SequenceModule(pl.LightningModule):
@@ -60,7 +62,7 @@ class SequenceModule(pl.LightningModule):
             num_layers_lstm=num_layers_lstm,
             embedding_dim=embedding_dim,
             vocab_size=vocab_size)
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.CrossEntropyLoss()
         self.lr = lr
         self.optimizer = optimizer
         self.test_y_hat = []
@@ -109,9 +111,12 @@ class SequenceModule(pl.LightningModule):
         y_hat = torch.cat([x['y_hat'] for x in self.test_outputs], dim=0)
 
         # convert probabilities to predicted labels
-        y_pred = (y_hat > 0.5).long()
+        y_pred_prob = torch.sigmoid(y_hat)
+        y_pred = y_pred_prob.argmax(dim=1)
 
         y_true = y_true.cpu()
+        y_pred_prob = y_pred_prob.cpu()
+        y_pred_prob_class_1 = y_pred_prob[:, 1] 
         y_pred = y_pred.cpu()
         y_hat = y_hat.cpu()
         
@@ -119,7 +124,7 @@ class SequenceModule(pl.LightningModule):
         acc = accuracy_score(y_true, y_pred)
         f1 = f1_score(y_true, y_pred, average='binary')
         precision = precision_score(y_true, y_pred, average='binary')
-        auc = roc_auc_score(y_true, y_hat)
+        auc = roc_auc_score(y_true, y_pred_prob_class_1)
         
         # log metrics
         self.log('test_acc', torch.tensor(acc, dtype=torch.float32))
@@ -129,12 +134,10 @@ class SequenceModule(pl.LightningModule):
         
         # log ROC curve in wandb
         y_true_np = y_true.numpy()
-        y_hat_np = y_hat.numpy()
+        y_hat_np = y_pred_prob.numpy()
 
-        # If y_hat_np is a 1D array, reshape it to a 2D array with 2 columns
-        if len(y_hat_np.shape) == 1:
-            y_hat_np = np.vstack((1-y_hat_np, y_hat_np)).T
-        
+        print("Shapes:", y_true.shape, y_hat.shape, y_true_np.shape, y_hat_np.shape)
+
         self.logger.experiment.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
 
         self.logger.experiment.log({"performance": wandb.Table(columns=["accuracy", "f1", "precision", "auc"],
@@ -163,7 +166,7 @@ class SequenceModule(pl.LightningModule):
         '''convenience function since train/valid/test steps are similar'''
         x, y = batch
         logits = self(x)
-        preds = (torch.sigmoid(logits) > 0.5).long()
-        loss = self.criterion(logits, y.float())
+        preds = torch.sigmoid(logits).argmax(dim=1)
+        loss = self.criterion(logits, y)
         acc = accuracy(preds, y, 'binary')
         return preds, loss, acc

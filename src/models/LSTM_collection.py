@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
 class BasicLSTM(nn.Module):
     def __init__(self,
@@ -49,7 +49,7 @@ class BasicLSTM(nn.Module):
                 x = self.embedding(x)
             x = pack_padded_sequence(x, lengths, batch_first=True)
             x, _ = self.lstm(x)
-            x, _ = torch.nn.utils.rnn.pad_packed_sequence(x, batch_first=True)
+            x, _ = pad_packed_sequence(x, batch_first=True)
         else:
             x, _ = self.lstm(x)
         x = torch.mean(x, dim=1)

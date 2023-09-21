@@ -9,6 +9,7 @@ import sys
 import pandas as pd
 from torch.nn.utils.rnn import pad_packed_sequence
 from src.models.LSTM_collection import BasicLSTM
+from src.models.Transformer_collection import BasicTransformer
 
 def check_dataloader_output(dataloader):
     for batch in dataloader:
@@ -31,7 +32,7 @@ def check_dataloader_output(dataloader):
 
 data_module = FixedLengthSequenceModule(num_workers=0,
                                         return_type="hmm_match_sequence",
-                                        batch_size=16,
+                                        batch_size=2,
                                         dataset=Path("data/processed/10_datasets/phage_25_fixed_25000_reduced_90_ws"),
                                         use_saved=True,
                                         pad_pack=True)
@@ -41,27 +42,32 @@ data_module.setup()
 # Check train DataLoader
 train_dataloader = data_module.train_dataloader()
 
-print("Train DataLoader:")
-check_dataloader_output(train_dataloader)
+# print("Train DataLoader:")
+# check_dataloader_output(train_dataloader)
 
-# Check val DataLoader (if defined in your DataModule)
-if hasattr(data_module, 'val_dataloader') and callable(data_module.val_dataloader):
-    val_dataloader = data_module.val_dataloader()
-    print("\nValidation DataLoader:")
-    check_dataloader_output(val_dataloader)
+# # Check val DataLoader (if defined in your DataModule)
+# if hasattr(data_module, 'val_dataloader') and callable(data_module.val_dataloader):
+#     val_dataloader = data_module.val_dataloader()
+#     print("\nValidation DataLoader:")
+#     check_dataloader_output(val_dataloader)
 
-# Check test DataLoader (if defined in your DataModule)
-if hasattr(data_module, 'test_dataloader') and callable(data_module.test_dataloader):
-    test_dataloader = data_module.test_dataloader()
-    print("\nTest DataLoader:")
-    check_dataloader_output(test_dataloader)
+# # Check test DataLoader (if defined in your DataModule)
+# if hasattr(data_module, 'test_dataloader') and callable(data_module.test_dataloader):
+#     test_dataloader = data_module.test_dataloader()
+#     print("\nTest DataLoader:")
+#     check_dataloader_output(test_dataloader)
 
 # Initialize the model
-model = BasicLSTM(pad_pack=True, embedding_dim=10, vocab_size=data_module.vocab_size)
+model = BasicTransformer(vocab_size=data_module.vocab_size)
+
+def generate_padding_mask(x, pad_value=0):
+        return (x.sum(dim=-1) == pad_value)
 
 # Initialize an instance of BasicLSTM and perform a forward pass test on the first batch of the train dataloader
 for batch in train_dataloader:
-    sequences_packed, labels = batch
-    outputs = model(sequences_packed)
+    sequences_padded, labels = batch
+    # print(sequences_padded['seqs'])
+    # print(sequences_padded['seqs'].shape)
+    # print(generate_padding_mask(sequences_padded['seqs']))
+    outputs = model(sequences_padded)
     print(f"Model outputs: {outputs}")
-    break
