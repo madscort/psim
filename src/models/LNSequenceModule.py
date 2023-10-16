@@ -97,7 +97,7 @@ class SequenceModule(pl.LightningModule):
     
     def test_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = torch.sigmoid(self(x))
+        y_hat = self(x)
 
         if not hasattr(self, 'test_outputs'):
             self.test_outputs = []
@@ -111,7 +111,7 @@ class SequenceModule(pl.LightningModule):
         y_hat = torch.cat([x['y_hat'] for x in self.test_outputs], dim=0)
 
         # convert probabilities to predicted labels
-        y_pred_prob = torch.sigmoid(y_hat)
+        y_pred_prob = torch.nn.functional.softmax(y_hat, dim=1)
         y_pred = y_pred_prob.argmax(dim=1)
 
         y_true = y_true.cpu()
@@ -135,8 +135,6 @@ class SequenceModule(pl.LightningModule):
         # log ROC curve in wandb
         y_true_np = y_true.numpy()
         y_hat_np = y_pred_prob.numpy()
-
-        print("Shapes:", y_true.shape, y_hat.shape, y_true_np.shape, y_hat_np.shape)
 
         self.logger.experiment.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
 
@@ -166,7 +164,7 @@ class SequenceModule(pl.LightningModule):
         '''convenience function since train/valid/test steps are similar'''
         x, y = batch
         logits = self(x)
-        preds = torch.sigmoid(logits).argmax(dim=1)
+        preds = logits.argmax(dim=1)
         loss = self.criterion(logits, y)
         acc = accuracy(preds, y, 'binary')
         return preds, loss, acc

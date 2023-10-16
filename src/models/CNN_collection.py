@@ -107,22 +107,25 @@ class SequenceNetGlobalInception(nn.Module):
 
 class BasicInception(nn.Module):
     def __init__(self,
-                alt_dropout_rate: float=0.1,
-                fc_dropout_rate: float=0.5,
-                activation_fn: str='ReLU',
-                batchnorm: bool=True,
-                fc_num: int=1,
-                kernel_size: tuple=(3,3,3),
-                num_inception_layers: int = 5,
-                out_channels: int = 16,
-                kernel_size_b1: int = 3,
-                kernel_size_b2: int = 5,
-                keep_b3 = True,
-                keep_b4 = True,
-                input_size=25000,
-                hidden_size_lstm=64,
-                num_layers_lstm=1,
-                num_classes=1):
+                    alt_dropout_rate: float=0.1,
+                    fc_dropout_rate: float=0.5,
+                    activation_fn: str='ReLU',
+                    batchnorm: bool=True,
+                    fc_num: int=1,
+                    kernel_size: tuple=(3,3,3),
+                    num_inception_layers: int = 5,
+                    out_channels: int = 16,
+                    kernel_size_b1: int = 3,
+                    kernel_size_b2: int = 5,
+                    keep_b3 = True,
+                    keep_b4 = True,
+                    input_size=25000,
+                    hidden_size_lstm=64,
+                    num_layers_lstm=1,
+                    num_classes=2,
+                    pad_pack: bool=False,
+                    embedding_dim=None,
+                    vocab_size=5):
         super(BasicInception, self).__init__()
         
         self.activation_fn = getattr(nn, activation_fn)()
@@ -134,8 +137,8 @@ class BasicInception(nn.Module):
 
         self.fc_pre = nn.Linear(inception_out_ch, inception_out_ch)
         self.fc_opt1 = nn.Linear(inception_out_ch, 16)
-        self.fc_opt2 = nn.Linear(16, 1)
-        self.fc = nn.Linear(inception_out_ch, 1)
+        self.fc_opt2 = nn.Linear(16, num_classes)
+        self.fc = nn.Linear(inception_out_ch, num_classes)
         
         self.dropout_conv = nn.Dropout(alt_dropout_rate)
         self.dropout = nn.Dropout(fc_dropout_rate)
