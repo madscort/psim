@@ -75,7 +75,7 @@ def save_sequences_in_chunks(sequences, length, output_path):
             chunk_id = f"{seq.id}_s{length}_{start}-{end}"
             SeqIO.write([SeqIO.SeqRecord(chunk, id=chunk_id, description="")], output_file, "fasta")
 
-def fixed_length_viral_sampling(number: int = 10000, length: int = 25000, output_root: Path = Path("data/processed/05_viral_sequences")):
+def fixed_length_viral_sampling(number: int = 10000, length: int = 25000, input_fasta_path: Path = Path("data/raw/03_viral_sequences/all_phages.fa.gz"), output_root: Path = Path("data/processed/05_viral_sequences")):
     """ sample contigs at a fixed length
     """
 
@@ -83,7 +83,7 @@ def fixed_length_viral_sampling(number: int = 10000, length: int = 25000, output
     length = length
 
     # Paths
-    viral_seqs = Path("data/raw/03_viral_sequences/all_phages.fa.gz")
+    viral_seqs = input_fasta_path
     output_root = output_root
     output_root.mkdir(parents=True, exist_ok=True)
     output = Path(output_root, f"{length}b_viral_contigs.fna")

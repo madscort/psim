@@ -20,7 +20,7 @@ def cluster_reduce(identity: float = 0.9, input_data: Path = None, output_path: 
     logging.info(f"Reducing homology in {input_sequences} to {output_sequences} with identity {identity}")
 
     # Run CD-HIT-est
-    run_cd_hit(input_sequences, identity, output_sequences)
+    # run_cd_hit(input_sequences, identity, output_sequences)
 
     # Get representative sequences identifiers
 
@@ -86,4 +86,4 @@ if __name__ == '__main__':
     # load up the .env entries as environment variables
     load_dotenv(find_dotenv())
 
-    cluster_reduce(0.90, Path("/Users/madsniels/Documents/_DTU/speciale/cpr/code/psim/data/processed/01_combined_renamed"))
+    cluster_reduce(0.80, Path("/Users/madsniels/Documents/_DTU/speciale/cpr/code/psim/data/processed/01_combined_renamed"))

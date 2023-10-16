@@ -68,7 +68,325 @@ cluster_sizes <-
 cluster_sizes
 ```
 
+## Visualise taxonomical distribution of satellites
+
+## Load
 ```{r}
+ps_tax <- read_delim("./../../data/processed/01_combined_renamed/ps_tax_info.tsv", delim="\t")
+
+head(ps_tax)
+```
+
+```{r}
+ps_tax %>% 
+  group_by(family) %>% 
+  summarise("count" = n())
+```
+
+
+```{r}
+ps_tax %>% 
+  group_by(family) %>% 
+  summarise("count" = n()) %>% 
+  count()
+```
+
+# BY FAMILY
+
+```{r}
+ps_tax %>% 
+  group_by(family) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  count()
+```
+
+```{r}
+ps_tax %>% 
+  group_by(family) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  ggplot(aes(family,count)) +
+  geom_col() +
+  coord_flip()
+```
+
+# BY GENUS
+
+```{r}
+ps_tax %>% 
+  group_by(genus) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  count()
+```
+
+
+```{r}
+ps_tax %>% 
+  group_by(genus) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  ggplot(aes(genus,count)) +
+  geom_col() +
+  coord_flip()
+```
+
+# BY SPECIES
+
+```{r}
+ps_tax %>% 
+  group_by(species) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  count()
+```
+
+```{r}
+ps_tax %>% 
+  group_by(species) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  ggplot(aes(species,count)) +
+  geom_col() +
+  coord_flip()
+```
+# More than 100
+```{r}
+ps_tax %>% 
+  group_by(species) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 50) %>% 
+  ggplot(aes(species,count)) +
+  geom_col() +
+  coord_flip()
+```
+
+# Homology reduced sequences
+
+```{r}
+ps_90_ids <- read_delim("./../../data/processed/10_datasets/phage_25_fixed_25000_reduced_90_ws/sampletable.tsv", delim="\t", col_names = c('ps_id', 'type', 'label')) %>% 
+  filter(label == 1)
+
+ps_tax <- read_delim("./../../data/processed/01_combined_renamed/ps_tax_info.tsv", delim="\t", col_names = TRUE) %>% mutate(ps_id = str_squish(ps_id))
+
+
+ps_tax
+ps_90_ids
+
+```
+```{r}
+count(ps_90_ids)
+```
+
+# Join on homology reduced sampletabl:
+
+```{r}
+ps_90 <- semi_join(ps_tax, ps_90_ids, by = join_by(ps_id))
+```
+
+
+# BY FAMILY
+
+```{r}
+ps_90 %>% 
+  group_by(family) %>% 
+  summarise("count" = n())
+```
+
+```{r}
+ps_90 %>% 
+  group_by(family) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  ggplot(aes(family,count)) +
+  geom_col() +
+  coord_flip()
+```
+
+# BY GENUS
+
+```{r}
+ps_90 %>% 
+  group_by(genus) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  count()
+```
+
+
+```{r}
+ps_90 %>% 
+  group_by(genus) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  ggplot(aes(genus,count)) +
+  geom_col() +
+  coord_flip()
+```
+
+# BY SPECIES
+
+```{r}
+ps_90 %>% 
+  group_by(species) %>% 
+  summarise() %>% 
+  count()
+```
+
+```{r}
+ps_90 %>% 
+  group_by(species) %>% 
+  summarise("count" = n()) %>% 
+  filter(count >= 50) %>% 
+  filter(count < 1000000) %>% 
+  select(species)
+```
+
+```{r}
+ps_90 %>% 
+  group_by(species) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  select(species)
+```
+
+
+```{r}
+ps_90 %>% 
+  group_by(species) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 10) %>% 
+  ggplot(aes(species,count)) +
+  geom_col() +
+  coord_flip()
+```
+# More than 100
+```{r}
+ps_90 %>% 
+  group_by(species) %>% 
+  summarise("count" = n()) %>% 
+  filter(count > 50) %>% 
+  ggplot(aes(species,count)) +
+  geom_col() +
+  coord_flip()
+```
+
+```{r}
+ps_90 %>% 
+  group_by(species) %>% 
+  summarise() %>% 
+  count()
+```
+# Heatmap of mash distances
+
+# Load data
+```{r}
+dist <- read_delim("./../../data/visualization/mash_map/mash_dist.tsv", col_names = c("var1","var2","distance", "contig_type"))
+```
+
+# Do heatmap
+```{r}
+dist %>% 
+  ggplot(aes(x = var1, y = var2, fill = distance)) +
+  geom_tile() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+  
+```
+```{r}
+library(forcats)
+
+dist <- read_delim("./../../data/visualization/mash_map/mash_dist.tsv", col_names = c("var1","var2","distance", "contig_type"))
+
+# Make var2 an ordered factor based on that order
+dist$contig_type <- factor(dist$contig_type, levels = unique(dist$contig_type))
+dist$var1 <- factor(dist$var1, levels = unique(dist$var1))
+dist$var2 <- factor(dist$var2, levels = unique(dist$var2))
+
+# Determine the order of var2 based on contig_type
+ordered_var2 <- dist %>%
+  select(var2, contig_type) %>%
+  distinct() %>%
+  arrange(contig_type, var2) %>%
+  pull(var2)
+
+# Make var2 an ordered factor based on that order
+dist$var2 <- fct_inorder(dist$var2, ordered_var2)
+
+
+p2 <- dist %>% 
+  ggplot(aes(x = var1, y = var2, fill = distance)) +
+  geom_tile() +
+  scale_fill_gradientn(colours=c("white", "lightgreen", "green"),
+                       values=rescale(c(0, 0.1, 1)),
+                       guide="colorbar") +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(0, 0, 0, 0, "pt")
+  )
+
+color_strip_data <- dist %>%
+  group_by(var2) %>%
+  summarise(contig_type = first(contig_type))
+
+# Colorbar plot
+p3 <- ggplot(color_strip_data, aes(x = var2, y = 1, fill = contig_type)) +
+  geom_tile() +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank(),
+        plot.margin = margin(0, 0, 0, 0, "pt"))
+
+p1 <- ggplot(color_strip_data, aes(x = 1, y = var2, fill = contig_type)) +
+  geom_tile() +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.margin = margin(0, 0, 0, 0, "pt"))
+
+p1 + p2 + plot_spacer() + plot_spacer() + p3 + plot_layout(ncol = 3,
+                                   widths = c(1, 10),
+                                   heights = c(10, 1))
+
+```
+
+```{r}
+# Creating a dummy data
+set.seed(42)
+dist <- expand.grid(var1 = 1:10, var2 = 1:10)
+dist$distance <- runif(nrow(dist))
+dist$contig_type <- factor(sample(c("A", "B"), nrow(dist), replace = TRUE))
+
+# Plotting
+ggplot(dist, aes(x = var1, y = var2)) +
+  geom_tile(aes(fill = distance)) +
+  scale_fill_gradient(low = "white", high = "red", guide = guide_legend()) +
+  new_scale("fill") +
+  geom_tile(data = dist, aes(x = var1, y = 0, fill = contig_type)) +
+  scale_fill_manual(values = c("A" = "blue", "B" = "green")) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
 
 ```
 
