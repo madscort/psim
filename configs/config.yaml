@@ -1,23 +1,23 @@
 project: "psim"
 accelerator: "gpu"
 devices: -1
-dataset: "phage_25_fixed_25000_reduced_90_ws"
-batch_size: 16
+dataset: "prophage_95_fixed_25000_ps_reduced_90_ws"
+batch_size: 32
 num_workers: 8
-epochs: 30
+epochs: 10
 
 data:
   # LSTM only
-  return_type: "hmm_match_sequence" # "fna"
-  pad_pack: True # Necessary when working with non-fixed length seqs.
-  use_saved: True # Use pickled input if available.
+  return_type: "fna" # "fna" "hmm_match_sequence"
+  pad_pack: False # Necessary when working with non-fixed length seqs.
+  use_saved: False # Use pickled input if available.
 
 model:
-  type: "Transformer"
-  name: "BasicTransformer"
-  fc_dropout_rate: 0.5
-  batchnorm: False
-  activation_fn: "ReLU"
+  type: "CNNInception"
+  name: "BasicInception"
+  fc_dropout_rate: 0.20
+  batchnorm: True
+  activation_fn: "ELU"
   fc_num: 1 # number of fully-connected layers after CNN/LSTM
   
   # Basic CNN only
@@ -27,12 +27,12 @@ model:
   kernel_size_3: 0 # If zero - no third layer.
 
   # Inception only
-  num_inception_layers: 1
-  out_channels: 32
-  kernel_size_b1: 3
-  kernel_size_b2: 3
+  num_inception_layers: 2
+  out_channels: 16
+  kernel_size_b1: 5
+  kernel_size_b2: 121
   keep_b3: False
-  keep_b4: True
+  keep_b4: False
 
   # LSTM only
   input_size: 1 # Sequence feature length. Set automatically if embeddinglayer.
@@ -42,4 +42,4 @@ model:
 
 optimizer:
   name: "adamw"
-  lr: 0.007
+  lr: 0.005

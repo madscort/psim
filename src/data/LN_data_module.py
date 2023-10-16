@@ -130,7 +130,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         if pad_pack:
             self.collate_fn = collate_fn_pad
         else:
-            self.collate_fn = collate_fn_zip
+            self.collate_fn = None
 
         match self.return_type:
             case "fna":
