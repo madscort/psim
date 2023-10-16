@@ -1,6 +1,5 @@
 import hydra
 import wandb
-import sys
 from pathlib import Path
 from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
@@ -16,80 +15,30 @@ from src.models.LNSequenceModule import SequenceModule
 
 @hydra.main(config_path="../../configs", config_name="config", version_base="1.2")
 def main(cfg: DictConfig):
-    project = cfg.project
-    accelerator = cfg.accelerator
-    devices = cfg.devices
-    dataset = cfg.dataset
-    model_type = cfg.model.type
-    model_name = cfg.model.name
-    batch_size = cfg.batch_size
-    num_workers = cfg.num_workers
-    epochs = cfg.epochs
-    activation_fn = cfg.model.activation_fn
-    alt_dropout_rate = cfg.model.alt_dropout_rate
-    fc_dropout_rate = cfg.model.fc_dropout_rate
-    batchnorm = cfg.model.batchnorm
-    fc_num = cfg.model.fc_num
-    kernel_size_1 = cfg.model.kernel_size_1
-    kernel_size_2 = cfg.model.kernel_size_2
-    kernel_size_3 = cfg.model.kernel_size_3
-    optimizer = cfg.optimizer.name
-    lr = cfg.optimizer.lr
-    num_inception_layers = cfg.model.num_inception_layers
-    out_channels = cfg.model.out_channels
-    kernel_size_b1 = cfg.model.kernel_size_b1
-    kernel_size_b2 = cfg.model.kernel_size_b2
-    keep_b3 = cfg.model.keep_b3
-    keep_b4 = cfg.model.keep_b4
-    model_input_size = cfg.model.input_size
-    hidden_size_lstm = cfg.model.hidden_size_lstm
-    num_layers_lstm = cfg.model.num_layers_lstm
-    dataset_return_type = cfg.data.return_type
-    pad_pack = cfg.data.pad_pack
-    use_saved = cfg.data.use_saved
-    embedding_dim = cfg.model.embedding_dim
     
     seed_everything(1)
     
     dataset_root = Path("data/processed/10_datasets/")
-    dataset = Path(dataset_root, dataset)
+    dataset = Path(dataset_root, cfg.dataset)
     data_module = FixedLengthSequenceModule(dataset=dataset,
-                                            return_type=dataset_return_type,
-                                            num_workers=num_workers,
-                                            batch_size=batch_size,
-                                            pad_pack=pad_pack,
-                                            use_saved=use_saved)
-    wandb_logger = WandbLogger(project=project,
+                                            return_type=cfg.model.data.return_type,
+                                            num_workers=cfg.num_workers,
+                                            batch_size=cfg.batch_size,
+                                            pad_pack=cfg.model.data.pad_pack,
+                                            use_saved=cfg.model.data.use_saved)
+    data_module.setup()
+    # Populate vocabulary size if embedding layer is used.
+    if 'vocab_size' in cfg.model.params:
+        cfg.model.params.vocab_size = data_module.vocab_size
+    
+    wandb_logger = WandbLogger(project=cfg.project,
                                config=OmegaConf.to_container(cfg,
                                                              resolve=True),
-                               name=model_name,
-                               group=model_type)
-
-    data_module.setup()
-    model = SequenceModule(model_name,
-                            lr=lr,
-                            optimizer=optimizer,
-                            activation_fn=activation_fn,
-                            fc_dropout_rate=fc_dropout_rate,
-                            batchnorm=batchnorm,
-                            fc_num=fc_num,
-                            # BasicCNN only:
-                            alt_dropout_rate=alt_dropout_rate,
-                            kernel_size=(kernel_size_1,kernel_size_2,kernel_size_3),
-                            # Inception only:
-                            num_inception_layers=num_inception_layers,
-                            out_channels=out_channels,
-                            kernel_size_b1=kernel_size_b1,
-                            kernel_size_b2=kernel_size_b2,
-                            keep_b3=keep_b3,
-                            keep_b4=keep_b4,
-                            model_input_size=model_input_size,
-                            # LSTM only
-                            pad_pack=pad_pack,
-                            hidden_size_lstm=hidden_size_lstm,
-                            num_layers_lstm=num_layers_lstm,
-                            embedding_dim=embedding_dim,
-                            vocab_size=data_module.vocab_size)
+                               name=cfg.run_name,
+                               group=cfg.run_group)
+    model = SequenceModule(model_config=cfg.model,
+                           lr=cfg.optimizer.lr,
+                           optimizer=cfg.optimizer.name)
 
     early_stop_callback = EarlyStopping(monitor='val_loss',
                                         min_delta=0.00,
@@ -97,9 +46,9 @@ def main(cfg: DictConfig):
                                         verbose=False,
                                         mode='min')
                                             
-    trainer = Trainer(accelerator=accelerator,
-                      devices=devices,
-                      max_epochs=epochs,
+    trainer = Trainer(accelerator=cfg.accelerator,
+                      devices=cfg.devices,
+                      max_epochs=cfg.epochs,
                       logger=wandb_logger,
                       callbacks=[LearningRateMonitor(logging_interval='step'),
                                  early_stop_callback,
