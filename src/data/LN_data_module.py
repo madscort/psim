@@ -1,22 +1,16 @@
 from pathlib import Path
 import pytorch_lightning as pl
 import pandas as pd
-import pyrodigal
 import torch
-import pickle
 import tempfile
 from sklearn.model_selection import train_test_split
 from Bio import SeqIO
 from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, Dataset
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pad_sequence
 from src.data.get_sequence import get_gene_gc_sequence, get_marker_hmms, get_marker_match_sequence
 
-# Collate function for non-LSTM
-def collate_fn_zip(batch):
-    sequences, labels = zip(*batch)
-    labels = torch.tensor(labels)
-    return sequences, labels
+
 
 def collate_fn_pad(batch):
     if isinstance(batch[0][0], list):
@@ -26,7 +20,6 @@ def collate_fn_pad(batch):
     sequences, labels = zip(*batch)
     lengths = [len(seq) for seq in sequences]
     sequences_padded = pad_sequence(sequences, batch_first=True, padding_value=0)
-    #sequences_packed = pack_padded_sequence(sequences_padded, lengths, batch_first=True)
     
     labels = torch.stack(labels)
 
@@ -98,7 +91,7 @@ class HMMMatchSequenceDataset(SequenceDataset):
     def __getitem__(self, idx):
         # Returns a sample at position idx
         # A sample includes:
-        # - Sequence of GC contents (for each gene)
+        # - Sequence of HMM profile matches (for each gene)
         # - Label (binary)
 
         encoded_sequences = torch.tensor(encode_sequence(self.sequences_paths[idx], self.vocab_map))

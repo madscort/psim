@@ -3,41 +3,26 @@ import torch.nn as nn
 
 class BasicTransformer(nn.Module):
     def __init__(self,
-                alt_dropout_rate: float=0.1,
-                fc_dropout_rate: float=0.5,
-                activation_fn: str='ReLU',
-                batchnorm: bool=True,
-                fc_num: int=1,
-                kernel_size: tuple=(3,3,3),
-                num_inception_layers: int = 5,
-                out_channels: int = 16,
-                kernel_size_b1: int = 3,
-                kernel_size_b2: int = 5,
-                keep_b3 = True,
-                keep_b4 = True,
-                input_size=25000,
-                hidden_size_lstm=64,
-                num_layers_lstm=1,
-                num_classes=2,
-                pad_pack: bool=False,
-                embedding_dim=None,
-                vocab_size=5,
-                # Transformer only:
-                d_model=10,
-                nhead=5,
-                num_layers=1,
-                dim_feedforward=10):
+                num_classes: int,
+                fc_dropout_rate: float,
+                vocab_size: int,
+                embedding_dim: int,
+                num_heads: int,
+                num_layers: int,
+                dim_feedforward: int,
+                dim_fc: int):
         super(BasicTransformer, self).__init__()
 
-        self.embedding = nn.Embedding(vocab_size, d_model)
-        encoder_layer = nn.TransformerEncoderLayer(d_model, nhead, dim_feedforward)
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        encoder_layer = nn.TransformerEncoderLayer(embedding_dim, num_heads, dim_feedforward)
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers)
         
         self.classifier_head = nn.Sequential(
-            nn.Linear(d_model, 10),
+            nn.Linear(embedding_dim, dim_fc),
             nn.ReLU(),
-            nn.Linear(10, num_classes),
-            nn.Sigmoid()
+            nn.Dropout(fc_dropout_rate),
+            nn.Linear(dim_fc, num_classes),
+            nn.Dropout(fc_dropout_rate)
         )
         
     def forward(self, x):
