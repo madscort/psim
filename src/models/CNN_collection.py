@@ -77,25 +77,7 @@ class BasicCNN(nn.Module):
         else:
             x = self.fc(x)
             x = self.dropout(x)
-        return x.squeeze(-1)
-
-class SequenceNetGlobalInception(nn.Module):
-    def __init__(self, conv_dropout_rate=0.1, fc_dropout_rate=0.5):
-        super(SequenceNetGlobalInception, self).__init__()
-        
-        self.inception1 = InceptionModule(in_channels=5, out_channels=16)
-
-        self.fc = nn.Linear(48, 1)  # Adjust the input dimension as per the inception module output
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(fc_dropout_rate)
-    
-    def forward(self, x):
-        x = self.inception1(x)
-
-        x = torch.mean(x, dim=2)  # Global average pooling
-        x = self.fc(x)
-        x = self.dropout(x)
-        return x.squeeze(-1)
+        return x
 
 
 class BasicInception(nn.Module):
@@ -165,7 +147,7 @@ class BasicInception(nn.Module):
         else:
             x = self.fc(x)
             x = self.dropout(x)
-        return x.squeeze(-1)
+        return x
 
 
 

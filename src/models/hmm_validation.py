@@ -19,14 +19,14 @@ def main():
     
     rerun = False
 
-    version_id = "phage_25_reduced_90_combined"
+    version_id = "prophage_95_fixed_25000_ps_reduced_90_ws"
 
     cluster_mode = 1
     cov_mode = 0
     min_cov = 0.8
     min_seq_id = 0.4
 
-    phmm_database = Path("data/external/databases/pfam/combined/combined.hmm")
+    phmm_database = Path("data/external/databases/pfam/pfam_A/Pfam-A.hmm")
     
     # Possible database:
     # pfamA: Path("data/external/databases/pfam/pfam_A/Pfam-A.hmm")
@@ -35,7 +35,7 @@ def main():
     # combined pfamA+RVDB: Path("data/external/databases/pfam/combined/combined.hmm")
     
     pfamA = False
-    dataset = Path("data/processed/10_datasets/phage_25_reduced_90")
+    dataset = Path("data/processed/10_datasets/prophage_95_fixed_25000_ps_reduced_90_ws")
     sample_table = Path(dataset, "sampletable.tsv")
     all_sequences = Path(dataset, "dataset.fna")
     positive_protein_collection = Path("data/processed/01_combined_renamed/all_proteins.faa")

@@ -5,11 +5,11 @@ dataset: "prophage_95_fixed_25000_ps_reduced_90_ws"
 batch_size: 16
 num_workers: 8
 epochs: 1
-run_group: lstm
+run_group: cnn
 run_name: config_test
 
 defaults:
-  - model: transformer_profile
+  - model: cnn
   - _self_
 
 optimizer:

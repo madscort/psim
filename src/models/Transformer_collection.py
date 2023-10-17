@@ -22,8 +22,7 @@ class BasicTransformer(nn.Module):
             nn.ReLU(),
             nn.Dropout(fc_dropout_rate),
             nn.Linear(dim_fc, num_classes),
-            nn.Dropout(fc_dropout_rate),
-            nn.Sigmoid()
+            nn.Dropout(fc_dropout_rate)
         )
         
     def forward(self, x):

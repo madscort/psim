@@ -27,40 +27,43 @@ class SequenceModule(pl.LightningModule):
 
     def forward(self, x):
         return self.model(x)
-
+    
     def training_step(self, batch, batch_idx):
         _, loss, acc = self._get_preds_loss_accuracy(batch)
         if self.fold_num is not None:
-            wandb.log({f"train_CV{self.fold_num}_loss" : loss,
-                       f"train_CV{self.fold_num}_acc" : acc})
-            self.log('train_loss', loss, logger=False, batch_size=batch[1].shape[0])
-            self.log('train_acc', acc, prog_bar=True, logger=False, batch_size=batch[1].shape[0])
+            wandb.log({f"train_CV{self.fold_num}_loss" : loss.item(),
+                    f"train_CV{self.fold_num}_acc" : acc.item()})
+            self.log('train_loss', loss, prog_bar=True, logger=False)
+            self.log('train_acc', acc, prog_bar=True, logger=False)
         else:
-            self.log('train_loss', loss, batch_size=batch[1].shape[0])
-            self.log('train_acc', acc, prog_bar=True, batch_size=batch[1].shape[0])
+            self.log('train_loss', loss, prog_bar=True, logger=True)
+            self.log('train_acc', acc, prog_bar=True, logger=True)
         return loss
-    
+
     def validation_step(self, batch, batch_idx):
         preds, loss, acc = self._get_preds_loss_accuracy(batch)
         if self.fold_num is not None:
-            wandb.log({f"val_CV{self.fold_num}_loss" : loss,
-                       f"val_CV{self.fold_num}_acc" : acc})
-            self.log('val_loss', loss, logger=False, batch_size=batch[1].shape[0])
-            self.log('val_acc', acc, prog_bar=True, logger=False, batch_size=batch[1].shape[0])
+            wandb.log({f"val_CV{self.fold_num}_loss" : loss.item(),
+                    f"val_CV{self.fold_num}_acc" : acc.item()})
+            self.log('val_loss', loss, prog_bar=True, logger=False)
+            self.log('val_acc', acc, prog_bar=True, logger=False)
         else:
-            self.log('val_loss', loss, prog_bar=True, batch_size=batch[1].shape[0])
-            self.log('val_acc', acc, prog_bar=True, batch_size=batch[1].shape[0])
+            self.log('val_loss', loss, prog_bar=True, logger=True)
+            self.log('val_acc', acc, prog_bar=True, logger=True)
         return preds
     
-    def test_step(self, batch, batch_idx):
+    def on_test_epoch_start(self) -> None:
+        super().on_test_epoch_start()
+        self.test_outputs = []
+        return
+    
+    def test_step(self, batch, batch_idx) -> None:
+        super().test_step()
         x, y = batch
         y_hat = self(x)
-
-        if not hasattr(self, 'test_outputs'):
-            self.test_outputs = []
+        
         self.test_outputs.append({'y_true': y, 'y_hat': y_hat})
-
-        return {'y_true': y, 'y_hat': y_hat}
+        return
 
     def on_test_epoch_end(self):
         # concatenate all y_true and y_hat from outputs of test_step
@@ -99,7 +102,7 @@ class SequenceModule(pl.LightningModule):
                     data=[[acc, f1, precision, auc]])})
 
         del self.test_outputs
-        return {'y_true': y_true, 'y_hat': y_hat}
+        return
 
     def configure_optimizers(self):
         if self.optimizer == 'adam':
