@@ -13,47 +13,45 @@ from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
 
-# fasta_glob = Path("data/processed/10_datasets/phage_25_fixed_25000_reduced_90_ws/satellite_sequences/").glob("*.fna")
-# a = mp.Aligner(["data/processed/10_datasets/phage_25_fixed_25000_reduced_90_ws/.tmp/sat_contigs.fna"])  # load or build index
+# 2023-10-31 mads
+
+# This baseline model creates a minimap index of the positive training data
+# ie. the satellite sequences, and then maps the test sequencens to this.
+# The best match score for each prediction is then used for a ROC curve.
+# The optimal threshold is calculated from this, and used for the rest of the
+# metrics.
 
 np.random.seed(1)
 
-dataset_id = "prophage_95_fixed_25000_ps_minimal_90_ws_w_host"
-version_id = "prophage_95_fixed_25000_ps_minimal_90_ws_w_host"
+dataset_id = "dataset_v01"
+version_id = "dataset_v01"
 
 dataset = Path("data/processed/10_datasets") / dataset_id
-sampletable = Path(dataset) / "sampletable.tsv"
-all_sequences = Path(dataset) / "dataset.fna"
-individual_sequences = Path(dataset) / "sequences"
+training_table = Path(dataset) / "train.tsv"
+test_table = Path(dataset) / "test.tsv"
+
+individual_train_sequences = Path(dataset) / "train" / "sequences"
+individual_test_sequences = Path(dataset) / "test" / "sequences"
 
 validation_root = Path("models/mappy_model")
 validation_root.mkdir(parents=True, exist_ok=True)
 iteration_root = Path(validation_root, version_id)
 iteration_root.mkdir(parents=True, exist_ok=True)
 
-# Split positive and negetative sets separately
-df_sampletable = pd.read_csv(sampletable, sep="\t", header=None, names=['id', 'type', 'label'])
+# Load training test split
 
-df_neg = df_sampletable.loc[df_sampletable['label'] == 0]
-df_pos = df_sampletable.loc[df_sampletable['label'] == 1]
+df_training = pd.read_csv(training_table, sep="\t", header=0, names=['id', 'type', 'label'])
+df_test = pd.read_csv(test_table, sep="\t", header=0, names=['id', 'type', 'label'])
 
-train_neg, test_neg = train_test_split(df_neg, stratify=df_neg['type'], test_size=0.2)
-train_pos, test_pos = train_test_split(df_pos, stratify=df_pos['type'], test_size=0.2)
-
-#train_ids = np.concatenate([train_neg['id'].values, train_pos['id'].values])
-# Only positive test set
-train_ids = train_pos['id'].values
-
-test_ids = np.concatenate([test_neg['id'].values, test_pos['id'].values])
-# # Only positive test set
-# test_ids = test_pos['id'].values
+train_ids = df_training.loc[df_training['label'] == 1]
+test_ids = df_test['id'].values
 
 with TemporaryDirectory() as tmp:
     # Create fasta for training data
     train_fasta = Path(tmp) / "train.fna"
     with open(train_fasta, "w") as f:
         for id in train_ids:
-            with open(individual_sequences / f"{id}.fna") as g:
+            with open(individual_train_sequences / f"{id}.fna") as g:
                 f.write(g.read())
     
     # Load as index:
@@ -66,7 +64,7 @@ with TemporaryDirectory() as tmp:
     max_labels = []
     label_predict = []
     for id in test_ids:
-        test_id_path = individual_sequences / f"{id}.fna"
+        test_id_path = individual_test_sequences / f"{id}.fna"
         max_score = 0
         match_id = None
         for name, seq, qual in mp.fastx_read(str(test_id_path)):
@@ -76,11 +74,11 @@ with TemporaryDirectory() as tmp:
                     max_score = hit.mapq
                     match_id = hit.ctg
         if match_id is not None:
-            label_predict.append(df_sampletable.loc[df_sampletable['id'] == match_id]['label'].values[0])
+            label_predict.append(df_training.loc[df_training['id'] == match_id]['label'].values[0])
         else:
             label_predict.append(0)
         max_scores.append(max_score)
-        max_labels.append(df_sampletable.loc[df_sampletable['id'] == id]['label'].values[0])
+        max_labels.append(df_test.loc[df_test['id'] == id]['label'].values[0])
 
 # Get roc curve with scikit learn
 

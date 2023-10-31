@@ -4,7 +4,6 @@ import sys
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.metrics import precision_recall_curve
@@ -19,7 +18,7 @@ def main():
     
     rerun = False
 
-    version_id = "prophage_95_fixed_25000_ps_minimal_90_ws_w_host"
+    version_id = "dataset_v01"
 
     cluster_mode = 1
     cov_mode = 0
@@ -34,11 +33,12 @@ def main():
     # RVDB: Path("data/external/databases/pfam/RVDB/U-RVDBv26.0-prot.hmm")
     # combined pfamA+RVDB: Path("data/external/databases/pfam/combined/combined.hmm")
     
-    pfamA = False
-    dataset = Path("data/processed/10_datasets/prophage_95_fixed_25000_ps_minimal_90_ws_w_host")
-    sample_table = Path(dataset, "sampletable.tsv")
-    all_sequences = Path(dataset, "dataset.fna")
-    positive_protein_collection = Path("data/processed/01_combined_renamed/all_proteins.faa")
+    pfamA = True
+    dataset = Path("data/processed/10_datasets/dataset_v01")
+    training_table = Path(dataset, "train.tsv")
+    test_table = Path(dataset, "test.tsv")
+    test_sequences = Path(dataset, "test", "sequences.fna")
+    positive_protein_collection = Path("data/processed/01_combined_databases/all_proteins.faa")
 
     validation_root = Path("models/hmm_model")
     iteration_root = Path(validation_root, version_id)
@@ -49,17 +49,15 @@ def main():
     test_pos_fasta = Path(tmp, "test_pos.faa")
     test_neg_fasta = Path(tmp, "test_neg.faa")
 
-    logging.info("Splitting data into training and test sets")
+    # Load training and test splits
 
-    # Split positive and negetative sets separately
-    df_sampletable = pd.read_csv(sample_table, sep="\t", header=None, names=['id', 'type', 'label'])
+    df_training = pd.read_csv(training_table, sep="\t", header=0, names=['id', 'type', 'label'])
+    df_test = pd.read_csv(test_table, sep="\t", header=0, names=['id', 'type', 'label'])
 
-    df_neg = df_sampletable.loc[df_sampletable['label'] == 0]
-    df_pos = df_sampletable.loc[df_sampletable['label'] == 1]
-
-    _, test_neg = train_test_split(df_neg, stratify=df_neg['type'], test_size=0.2)
-    train_pos, test_pos = train_test_split(df_pos, stratify=df_pos['type'], test_size=0.2)
-
+    train_pos = df_training.loc[df_training['label'] == 1]
+    test_pos = df_test.loc[df_test['label'] == 1]
+    test_neg = df_test.loc[df_test['label'] == 0]
+    
     # Create temporary split datasets
 
     # Get proteins for positive samples for training set
@@ -78,7 +76,7 @@ def main():
                     SeqIO.write(record, f, "fasta")
 
     if not test_pos_fasta.exists() or not test_neg_fasta.exists() or rerun:
-        sequence_index = SeqIO.index(all_sequences.absolute().as_posix(), "fasta")
+        test_sequence_index = SeqIO.index(test_sequences.absolute().as_posix(), "fasta")
 
     if test_pos_fasta.exists() and test_neg_fasta.exists() and not rerun:
         logging.info(f"Skipping test_pos_fasta, {test_pos_fasta.absolute().as_posix()} already exists.")
@@ -88,7 +86,7 @@ def main():
 
         with open(test_pos_fasta, "w") as f:
             for id in test_pos['id'].values:
-                SeqIO.write(sequence_index[id], f, "fasta")
+                SeqIO.write(test_sequence_index[id], f, "fasta")
     
     if test_neg_fasta.exists() and not rerun:
         logging.info(f"Skipping test_neg_fasta, {test_neg_fasta.absolute().as_posix()} already exists.")
@@ -97,10 +95,10 @@ def main():
         test_neg_fasta.unlink(missing_ok=True)
         with open(test_neg_fasta, "w") as f_out:  
             for id in test_neg['id'].values:
-                SeqIO.write(sequence_index[id], f_out, "fasta")
+                SeqIO.write(test_sequence_index[id], f_out, "fasta")
 
     try:
-        sequence_index.close()
+        test_sequence_index.close()
     except:
         pass
 
