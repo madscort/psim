@@ -149,8 +149,8 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
             val = df_sampletable.iloc[self.val_indices]
             test = df_sampletable.iloc[self.test_indices]
         else:
-            fit, test = train_test_split(df_sampletable, stratify=df_sampletable['type'], test_size=0.1)
-            train, val = train_test_split(fit, stratify=fit['type'], test_size=0.2)
+            fit, test = train_test_split(df_sampletable, stratify=df_sampletable['type'], test_size=0.1, random_state=1)
+            train, val = train_test_split(fit, stratify=fit['type'], test_size=0.2, random_state=1)
 
         self.train_sequences = [Path(self.datafolder, f"{id}.fna") for id in train['id'].values]
         self.val_sequences = [Path(self.datafolder, f"{id}.fna") for id in val['id'].values]

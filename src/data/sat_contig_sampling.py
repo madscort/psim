@@ -50,10 +50,13 @@ def jitter_contig_coordinates(size, start, end, reference_length):
     return contig_start, contig_end, start_in_contig, end_in_contig
 
 
-def sat_contig_sampling(fixed: bool = False, fixed_length: int = 25000,
+def sat_contig_sampling(fixed: bool = True,
+                        fixed_length: int = 25000,
                         sanity_check: bool = True,
-                        input_root: Path = Path("data/processed/01_combined_renamed"),
-                        output_root: Path = Path("data/processed/03_mock_data/satellite_contigs")):
+                        input_root: Path = Path("data/processed/01_combined_databases"),
+                        output_root: Path = Path("data/processed/03_mock_data/satellite_contigs"),
+                        sample_table_path: Path = None,
+                        tmp_root: Path = None):
     """ sample reference genomes around a specific coordinate set.
         in a lognormal size distribution.
         
@@ -69,35 +72,49 @@ def sat_contig_sampling(fixed: bool = False, fixed_length: int = 25000,
     output_root = output_root
     
     sat_seqs = Path(input_root, "all_sequences.fna")
-    ref_seqs = Path(input_root, "all_reference_sequences.fna")
+    ref_seqs = Path(input_root, "reference_sequences")
     sat_coords = Path(input_root, "satellite_coordinates.tsv")
-    sample_table = pd.read_csv(Path(input_root, "sample_table.tsv"),
-                               sep="\t", header=None, names=['id', 'type', 'label'])
-    
+    tmp_fasta = Path(tmp_root, "satellite_contigs.fna")
+
+    samples = []
+    sample_coordinates = {}
+    contig_coordinates = {}
 
     # Hardcoded parameters
     mean_log = 10.5
     sigma_log = 1.25
 
-    reference_index = SeqIO.index(ref_seqs.absolute().as_posix(), "fasta")
+    # Input samples
+    with open(sample_table_path, "r") as f:
+        f.readline()
+        for line in f:
+            if line.split("\t")[2].strip() == "1":
+                samples.append(line.split("\t")[0])
 
-    # Number of samples to generate
+    # Satellite coordinates
     with open(sat_coords, "r") as f:
-        n_samples = sum(1 for line in f)
-    
-    # Generate contigs
-    with open(sat_coords, "r") as f, open(Path(output_root, "sat_contigs_coord.tsv"), "w") as f_out, open(Path(output_root, "sample_table.tsv"), 'w') as f_out_table, open(Path(output_root, "sat_contigs.fna"), "w") as f_out_fasta:
-        
-        for line_n, line in enumerate(f):
-            if line_n % 100 == 0:
-                print(f"Sampling {line_n} of {n_samples}")
+        for line in f:
             line = line.split("\t")
-            
             sat_id, seq_origin_id, start, end = line[0], line[1], int(line[2]), int(line[3])
+            if sat_id in samples:
+                sample_coordinates[sat_id] = [seq_origin_id, start, end]
+
+    # Generate contigs
+    with open(Path(output_root, "contig_coordinates.tsv"), "w") as f_out, open(tmp_fasta, "w") as f_out_fasta:
+        
+        for sample_n, sat_id in enumerate(samples):
+            if sample_n % 100 == 0:
+                print(f"Sampling {sample_n} of {len(samples)}")
+
+            seq_origin_id, start, end = sample_coordinates[sat_id]
+            ref_path = ref_seqs / f"{seq_origin_id}.fna"
+
+            # Load file as record:
+            reference_sequence = next(SeqIO.parse(ref_path, "fasta"))
 
             if fixed:
                 size = fixed_length
-                if len(reference_index[seq_origin_id].seq) < size or end - start > size:
+                if len(reference_sequence.seq) < size or end - start > size:
                     continue
             else:
                 size = 0
@@ -106,48 +123,47 @@ def sat_contig_sampling(fixed: bool = False, fixed_length: int = 25000,
                     size = int(np.round(size))
 
             contig_start, contig_end, start_in_contig, end_in_contig = jitter_contig_coordinates(
-                size, start, end, len(reference_index[seq_origin_id].seq)
+                size, start, end, len(reference_sequence.seq)
             )
 
-            new_contig_seq = reference_index[seq_origin_id].seq[contig_start:contig_end]
-            if new_contig_seq[start_in_contig:end_in_contig] != reference_index[seq_origin_id].seq[start:end]:
+            new_contig_seq = reference_sequence.seq[contig_start:contig_end]
+            if new_contig_seq[start_in_contig:end_in_contig] != reference_sequence.seq[start:end]:
                 print("Error: contig does not match reference sequence")
                 sys.exit()
+
+            contig_coordinates[sat_id] = [start_in_contig, end_in_contig]
 
             # Save satellite coordinates:
             f_out.write(f"{sat_id}\t{start_in_contig}\t{end_in_contig}\n")
 
-            # Save new redacted sample table:
-            f_out_table.write(f"{sat_id}\t{sample_table[sample_table['id'] == sat_id]['type'].values[0]}\t{sample_table[sample_table['id'] == sat_id]['label'].values[0]}\n")
-
             # Write contig to fasta file
-            record = SeqRecord(reference_index[seq_origin_id].seq[contig_start:contig_end],
+            record = SeqRecord(reference_sequence.seq[contig_start:contig_end],
                                id=sat_id, description="")
             SeqIO.write(record, f_out_fasta, "fasta")
 
     # Sanity check input files:
     if sanity_check:
-        with open(sat_coords, "r") as f:
-            
-            satellite_index = SeqIO.index(sat_seqs.absolute().as_posix(), "fasta")
-            
-            for line_n, line in enumerate(f):
-                if line_n % 100 == 0:
-                    print(f"Checking line {line_n} of {n_samples}")
-                line = line.split("\t")
-                sat_id, seq_origin_id, start, end = line[0], line[1], int(line[2]), int(line[3])
+        logging.info("Loading satellite sequences for sanity check..")
+        satellite_index = SeqIO.index(sat_seqs.absolute().as_posix(), "fasta")
+        logging.info("Done loading satellite sequences")
+        for sample_n, record in enumerate(list(SeqIO.parse(tmp_fasta, "fasta"))):
+            if sample_n % 100 == 0:
+                print(f"Checking sample {sample_n} of {len(samples)}")
 
-                sat_seq = satellite_index[sat_id].seq
-                ref_seq = reference_index[seq_origin_id].seq[start:end]
-                if sat_seq != ref_seq:
-                    print(f"Error: {sat_id} does not match {seq_origin_id} at {start}:{end}")
-                    print(f"{sat_seq}")
-                    print(f"{ref_seq}")
-                    sys.exit()
-    
+            start, end = contig_coordinates[record.id]
+
+            sat_seq = satellite_index[record.id].seq
+            ref_seq = record.seq[start:end]
+
+            if sat_seq != ref_seq:
+                print(f"Error: {record.id} does not match {seq_origin_id} at {start}:{end}")
+                print(f"{sat_seq}")
+                print(f"{ref_seq}")
+                sys.exit()
+
         satellite_index.close()
-    
-    reference_index.close()
+
+    return tmp_fasta
 
 
 if __name__ == '__main__':

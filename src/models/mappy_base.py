@@ -18,8 +18,8 @@ import seaborn as sns
 
 np.random.seed(1)
 
-dataset_id = "prophage_95_fixed_25000_ps_minimal_90_ws"
-version_id = "prophage_95_fixed_25000_ps_minimal_90_ws"
+dataset_id = "prophage_95_fixed_25000_ps_minimal_90_ws_w_host"
+version_id = "prophage_95_fixed_25000_ps_minimal_90_ws_w_host"
 
 dataset = Path("data/processed/10_datasets") / dataset_id
 sampletable = Path(dataset) / "sampletable.tsv"

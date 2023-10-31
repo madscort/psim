@@ -19,7 +19,7 @@ def main():
     
     rerun = False
 
-    version_id = "prophage_95_fixed_25000_ps_reduced_90_ws"
+    version_id = "prophage_95_fixed_25000_ps_minimal_90_ws_w_host"
 
     cluster_mode = 1
     cov_mode = 0
@@ -35,7 +35,7 @@ def main():
     # combined pfamA+RVDB: Path("data/external/databases/pfam/combined/combined.hmm")
     
     pfamA = False
-    dataset = Path("data/processed/10_datasets/prophage_95_fixed_25000_ps_reduced_90_ws")
+    dataset = Path("data/processed/10_datasets/prophage_95_fixed_25000_ps_minimal_90_ws_w_host")
     sample_table = Path(dataset, "sampletable.tsv")
     all_sequences = Path(dataset, "dataset.fna")
     positive_protein_collection = Path("data/processed/01_combined_renamed/all_proteins.faa")

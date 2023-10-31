@@ -51,18 +51,19 @@ def get_viral_contigs(number: int = 1000, min_length: int = 0, input_fasta_path:
 
 
 def filter_downsample_fasta_stdout(input_fasta_path, min_length, downsample_n):
-    # Decompress using zcat
-    with open(input_fasta_path, "rb") as f_in:
-        # Unzip, filter, downsample and rezip
-
-        zcat = subprocess.Popen(["gunzip", "-c"], stdin=f_in, stdout=subprocess.PIPE)
-        seqkit_seq = subprocess.Popen(["seqkit", "seq", f"--min-len={min_length}"], stdin=zcat.stdout, stdout=subprocess.PIPE)
+    with open(input_fasta_path, "r") as f_in:
+    # Filter, deduplicate, downsample and rename
+        seqkit_seq = subprocess.Popen(["seqkit", "seq", f"--min-len={min_length}", "--remove-gaps"], stdin=f_in, stdout=subprocess.PIPE)
         seqkit_rmdup = subprocess.Popen(["seqkit", "rmdup", "-s"], stdin=seqkit_seq.stdout, stdout=subprocess.PIPE)
-        seqkit_sample = subprocess.Popen(["seqkit", "sample", "-s", "100", "-n", f"{int(downsample_n)}"], stdin=seqkit_rmdup.stdout, stdout=subprocess.PIPE, text=True)
-        seqkit_rename = subprocess.Popen(["seqkit", "rename"], stdin=seqkit_sample.stdout, stdout=subprocess.PIPE, text=True)
+        if downsample_n > 0:
+            seqkit_sample = subprocess.Popen(["seqkit", "sample", "-s", "100", "-n", f"{int(downsample_n)}"], stdin=seqkit_rmdup.stdout, stdout=subprocess.PIPE, text=True)
+            rename_input_stream = seqkit_sample.stdout
+        else:
+            rename_input_stream = seqkit_rmdup.stdout
+        seqkit_rename = subprocess.Popen(["seqkit", "rename"], stdin=rename_input_stream, stdout=subprocess.PIPE, text=True)
         stdout, _ = seqkit_rename.communicate()
         
-        return stdout
+    return stdout
 
 def save_sequences_in_chunks(sequences, length, output_path):
     with open(output_path, "w") as output_file:
@@ -72,8 +73,8 @@ def save_sequences_in_chunks(sequences, length, output_path):
 
             # Get random sequence of length "length"
             chunk = seq.seq[start:end]
-            chunk_id = f"{seq.id}_s{length}_{start}-{end}"
-            SeqIO.write([SeqIO.SeqRecord(chunk, id=chunk_id, description="")], output_file, "fasta")
+            # Could be used for renaming in future: chunk_id = f"{seq.id}_s{length}_{start}-{end}"
+            SeqIO.write([SeqIO.SeqRecord(chunk, id=seq.id, description="")], output_file, "fasta")
 
 def fixed_length_viral_sampling(number: int = 10000, length: int = 25000, input_fasta_path: Path = Path("data/raw/03_viral_sequences/all_phages.fa.gz"), output_root: Path = Path("data/processed/05_viral_sequences")):
     """ sample contigs at a fixed length
@@ -105,5 +106,3 @@ if __name__ == '__main__':
     # find .env automagically by walking up directories until it's found, then
     # load up the .env entries as environment variables
     load_dotenv(find_dotenv())
-
-    get_viral_contigs()

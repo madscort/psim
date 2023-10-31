@@ -25,16 +25,16 @@ def mash(input_fasta: Path, sketchDB: Path):
 
 # First get X random sequences from sampletable:
 x = 50
-sampletable = Path("data/processed/10_datasets/prophage_95_fixed_25000_ps_minimal_90_ws/sampletable.tsv")
+sampletable = Path("data/processed/10_datasets/phage_25_fixed_25000_reduced_90_ws/sampletable.tsv")
 
 df_sampletable = pd.read_csv(sampletable, sep="\t", header=None, names=['id', 'type', 'label'])
 df_ps = df_sampletable.loc[df_sampletable['label'] == 1]['id'].values.tolist()
 df_viral = df_sampletable.loc[(df_sampletable['label'] == 0) & (df_sampletable['type'] == 'viral_contigs')]['id'].values.tolist()
 df_meta = df_sampletable.loc[(df_sampletable['label'] == 0) & (df_sampletable['type'] == 'meta_contigs')]['id'].values.tolist()
 
-ps_seqs = [Path("data/processed/10_datasets/prophage_95_fixed_25000_ps_minimal_90_ws/sequences") / f"{seq}.fna" for seq in np.random.choice(df_ps, x, replace=False)]
-viral_seqs = [Path("data/processed/10_datasets/prophage_95_fixed_25000_ps_minimal_90_ws/sequences") / f"{seq}.fna" for seq in np.random.choice(df_viral, x, replace=False)]
-meta_seqs = [Path("data/processed/10_datasets/prophage_95_fixed_25000_ps_minimal_90_ws/sequences") / f"{seq}.fna" for seq in np.random.choice(df_meta, x, replace=False)]
+ps_seqs = [Path("data/processed/10_datasets/phage_25_fixed_25000_reduced_90_ws/sequences") / f"{seq}.fna" for seq in np.random.choice(df_ps, x, replace=False)]
+viral_seqs = [Path("data/processed/10_datasets/phage_25_fixed_25000_reduced_90_ws/sequences") / f"{seq}.fna" for seq in np.random.choice(df_viral, x, replace=False)]
+meta_seqs = [Path("data/processed/10_datasets/phage_25_fixed_25000_reduced_90_ws/sequences") / f"{seq}.fna" for seq in np.random.choice(df_meta, x, replace=False)]
 combined_seqs = ps_seqs + viral_seqs + meta_seqs
 
 contig_types = {'phage_satellite': ps_seqs,
@@ -43,7 +43,7 @@ contig_types = {'phage_satellite': ps_seqs,
 
 # Sketch ps_seqs and save to tmp dir:
 
-mashout = Path("data/visualization/mash_map/mash_dist.tsv")
+mashout = Path("data/visualization/mash_map/mash_dist_original.tsv")
 mashout.parent.mkdir(parents=True, exist_ok=True)
 
 with TemporaryDirectory() as tmp:

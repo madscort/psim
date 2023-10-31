@@ -43,74 +43,74 @@ with open(filter_taxonomy, "r") as f:
             satellite_species[species] = 1
             species_imgvr_count[species] = 0
 
-# ## Extract sequences by species
+## Extract sequences by species
 
-# img_seq = set()
-# img_seq_species = {}
+img_seq = set()
+img_seq_species = {}
 
-# with open(img_vr_host_info, "r") as f:
-#     f.readline()
-#     for line in f:
-#         sequence = line.split("\t")[0].strip()
-#         type = line.split("\t")[1]
-#         host = line.split("\t")[2].split(";")
-#         family, genus, species = host[4][3:].strip(), host[5][3:].strip(), host[6][3:].strip()
-#         if family == "" and genus == "" and species == "":
-#             continue
-#         #print(f"{sequence}\t{type}\t{family}\t{genus}\t{species}")
-#         if species in satellite_species:
-#             species_imgvr_count[species] += 1
-#             img_seq.add(sequence)
-#             img_seq_species[sequence] = species
+with open(img_vr_host_info, "r") as f:
+    f.readline()
+    for line in f:
+        sequence = line.split("\t")[0].strip()
+        type = line.split("\t")[1]
+        host = line.split("\t")[2].split(";")
+        family, genus, species = host[4][3:].strip(), host[5][3:].strip(), host[6][3:].strip()
+        if family == "" and genus == "" and species == "":
+            continue
+        #print(f"{sequence}\t{type}\t{family}\t{genus}\t{species}")
+        if species in satellite_species:
+            species_imgvr_count[species] += 1
+            img_seq.add(sequence)
+            img_seq_species[sequence] = species
 
-# missed_sp = 0
-# missed_seq = 0
+missed_sp = 0
+missed_seq = 0
 
-# for species in species_imgvr_count:
-#     if species_imgvr_count[species] == 0:
-#         missed_sp += 1
-#         missed_seq += satellite_species[species]
-#     print(species.ljust(40),f"{species_imgvr_count[species]}".ljust(10),satellite_species[species])
+for species in species_imgvr_count:
+    if species_imgvr_count[species] == 0:
+        missed_sp += 1
+        missed_seq += satellite_species[species]
+    print(species.ljust(40),f"{species_imgvr_count[species]}".ljust(10),satellite_species[species])
 
-# print(f"Missed species: {missed_sp}")
-# print(f"Missed sequences: {missed_seq}")
+print(f"Missed species: {missed_sp}")
+print(f"Missed sequences: {missed_seq}")
 
-# high_quality = 0
-# reference = 0
-# total = 0
-# types = {}
+high_quality = 0
+reference = 0
+total = 0
+types = {}
 
-# # Save sequences with species, type and coordinates
-# with open(filter_imgvr_seqs_list, "w") as o:
-#     with open(img_vr_seq_info, "r") as f:
-#         for line in f:
-#             sequence = line.split("\t")[0].strip()
-#             if sequence in img_seq:
-#                 total += 1
-#                 type = line.split("\t")[7].strip()
-#                 coord = line.split("\t")[3].strip()
-#                 if coord == "whole":
-#                     coord_start = 0
-#                     coord_end = -1
-#                 else:
-#                     coord_start = int(coord.split("-")[0])
-#                     coord_end = int(coord.split("-")[1])
-#                 if type not in types:
-#                     types[type] = 0
-#                 else:
-#                     types[type] += 1
-#                 if line.strip().split("\t")[12] == "Reference":
-#                     reference += 1
-#                 if line.strip().split("\t")[12] == "High-quality":
-#                     high_quality += 1
-#                 print(f"{sequence}\t{img_seq_species[sequence]}\t{type}\t{coord_start}\t{coord_end}", file=o)
+# Save sequences with species, type and coordinates
+with open(filter_imgvr_seqs_list, "w") as o:
+    with open(img_vr_seq_info, "r") as f:
+        for line in f:
+            sequence = line.split("\t")[0].strip()
+            if sequence in img_seq:
+                total += 1
+                type = line.split("\t")[7].strip()
+                coord = line.split("\t")[3].strip()
+                if coord == "whole":
+                    coord_start = 0
+                    coord_end = -1
+                else:
+                    coord_start = int(coord.split("-")[0])
+                    coord_end = int(coord.split("-")[1])
+                if type not in types:
+                    types[type] = 0
+                else:
+                    types[type] += 1
+                if line.strip().split("\t")[12] == "Reference":
+                    reference += 1
+                if line.strip().split("\t")[12] == "High-quality":
+                    high_quality += 1
+                print(f"{sequence}\t{img_seq_species[sequence]}\t{type}\t{coord_start}\t{coord_end}", file=o)
 
-# print(f"Total: {total}")
-# print(f"Reference: {reference}")
-# print(f"High quality: {high_quality}")
-# print(f"Total high quality: {reference + high_quality}")
-# for type in types:
-#     print(type, types[type])
+print(f"Total: {total}")
+print(f"Reference: {reference}")
+print(f"High quality: {high_quality}")
+print(f"Total high quality: {reference + high_quality}")
+for type in types:
+    print(type, types[type])
 
 Prosequence = collections.namedtuple("Prosequence", ["species", "type", "coord_start", "coord_end"])
 
