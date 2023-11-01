@@ -257,6 +257,10 @@ def create_dataset():
             if len(seq_ids) != len(set(seq_ids)):
                 print("Duplicate sequences")
 
+            # Not all sequences end up in dataset in the case of fixed sequence lengths
+            # sometimes flanking regions are too short for sampling the sequences for example.
+            # The sampletable is updated here:
+
             sample_update = []
             for sample in split_samples:
                 if sample not in seq_ids:
@@ -265,8 +269,7 @@ def create_dataset():
             for seq in seq_ids:
                 if seq not in split_samples:
                     print(seq, " not in samples")
-            
-            print("Symmetric difference: ", set(split_samples).symmetric_difference(set(seq_ids)))
+
             if len(sample_update) != 0:
                 print("Updating sampletable")
                 with open(data_splits[split], "r") as f_in, open(tmp / "tmp_table.tsv", "w") as f_out:

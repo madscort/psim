@@ -471,3 +471,166 @@ prediction %>%
   facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
 ```
 
+```{r}
+prediction <- 
+  read_delim("./../../data/visualization/sliding_window/predictions.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+prediction %>% 
+  filter(tax == "Escherichia coli") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank()) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+```
+
+
+```{r}
+prediction <- 
+  read_delim("./../../data/visualization/sliding_window/predictions_original.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+prediction %>% 
+  filter(tax == "Escherichia coli") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank()) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+```
+
+
+```{r}
+prediction <- 
+  read_delim("./../../data/visualization/sliding_window/predictions_original.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+p1 <- prediction %>% 
+  filter(tax == "Kocuria palustris") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        legend.title =  element_blank()) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+
+prediction <- 
+  read_delim("./../../data/visualization/sliding_window/predictions.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+p2 <- prediction %>% 
+  filter(tax == "Kocuria palustris") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        legend.title =  element_blank()) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+
+p1 / p2
+```
+
+
+```{r}
+prediction <- 
+  read_delim("./../../data/visualization/sliding_window/predictions_version01.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+prediction %>% 
+  filter(tax == "Kosakonia arachidis") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank()) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+```
+
+```{r}
+prediction <- 
+  read_delim("./../../data/visualization/sliding_window/predictions_original.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+p1 <- prediction %>% 
+  filter(tax == "Kocuria palustris") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        legend.title =  element_blank()) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+
+prediction <- 
+  read_delim("./../../data/visualization/sliding_window/predictions_version01.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+p2 <- prediction %>% 
+  filter(tax == "Kocuria palustris") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        legend.title =  element_blank()) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+
+p1 / p2
+```

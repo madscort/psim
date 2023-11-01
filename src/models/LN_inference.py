@@ -21,7 +21,7 @@ def main():
     ps_sample = collections.namedtuple("ps_sample", ["sample_id", "type", "ref_seq", "coord_start", "coord_end"])
     ref_seqs = Path("data/processed/01_combined_databases/reference_sequences/")
     ps_taxonomy = Path("data/processed/01_combined_databases/ps_tax_info.tsv")
-    output_file = Path("data/visualization/sliding_window/predictions_original.tsv")
+    output_file = Path("data/visualization/sliding_window/predictions_version01.tsv")
     stride = 5000
     chunk_size = 25000
 
@@ -35,6 +35,7 @@ def main():
             try:
                 tax[line[0].strip()] = line[3].strip()
             except IndexError:
+                tax[line[0].strip()] = "unknown"
                 print(line)
 
     with open(sampletable, "r") as f:
@@ -80,9 +81,8 @@ def main():
     seq_host = []
     all_truths = []
 
-    sample_table_test = Path("data/processed/10_datasets/prophage_95_fixed_25000_ps_minimal_90_ws_w_host/sampletable.tsv")
-    df_sampletable = pd.read_csv(sample_table_test, sep="\t", header=None, names=['id', 'type', 'label'])
-    fit, test = train_test_split(df_sampletable, stratify=df_sampletable['type'], test_size=0.1, random_state=1)
+    sample_table_test = Path("data/processed/10_datasets/dataset_v01/test.tsv")
+    test = pd.read_csv(sample_table_test, sep="\t", header=0, names=['id', 'type', 'label'])
     # Get sampleids from val for label == 1:
 
     sampleids = test[test['label'] == 1]['id'].tolist()
@@ -191,7 +191,7 @@ def main():
     #         seq += line.strip()
     #     seqs.append(seq)
 
-    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/inception/checkpoint/8frkxtxu_pro.ckpt").absolute(),
+    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/inception/checkpoint/zrr84ejw_version01.ckpt").absolute(),
                                                 map_location=torch.device('cpu'))
     model.eval()
     seq_preds = []

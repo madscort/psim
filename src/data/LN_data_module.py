@@ -101,10 +101,9 @@ class HMMMatchSequenceDataset(SequenceDataset):
         return encoded_sequences, label
 
 class FixedLengthSequenceModule(pl.LightningDataModule):
-    def __init__(self, return_type: str="fna", use_saved: bool=False,
-                 dataset: Path=Path("data/processed/10_datasets/phage_25_fixed_25000"),
+    def __init__(self, return_type: str="fna", use_saved: bool=False, dataset: Path=None,
                  train_indices=None, val_indices=None, test_indices=None,
-                 num_workers: int=1, batch_size: int=68, pad_pack: bool=False):
+                 num_workers: int=1, batch_size: int=32, pad_pack: bool=False):
         super().__init__()
         self.return_type = return_type
         self.use_saved = use_saved
@@ -114,8 +113,6 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         self.val_indices = val_indices
         self.test_indices = test_indices
         self.dataset = dataset
-        self.datafolder = Path(dataset, "sequences")
-        self.sampletable = Path(dataset, "sampletable.tsv")
         self.num_workers = num_workers
         self.batch_size = batch_size
         self.hmm_models = False
@@ -133,29 +130,27 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
             case "hmm_match_sequence":
                 self.DatasetType = HMMMatchSequenceDataset
                 self.hmm_models = True
-                
 
     def prepare_data(self):
         pass
 
     def setup(self, stage: str = None):
-        
-        # Load sampletable
-        df_sampletable = pd.read_csv(self.sampletable, sep="\t", header=None, names=['id', 'type', 'label'])
-        
         if self.train_indices is not None and self.val_indices is not None:
+            pass
+            # Update later..
             # Used for cross-validation
-            train = df_sampletable.iloc[self.train_indices]
-            val = df_sampletable.iloc[self.val_indices]
-            test = df_sampletable.iloc[self.test_indices]
+            # train = df_sampletable.iloc[self.train_indices]
+            # val = df_sampletable.iloc[self.val_indices]
+            # test = df_sampletable.iloc[self.test_indices]
         else:
-            fit, test = train_test_split(df_sampletable, stratify=df_sampletable['type'], test_size=0.1, random_state=1)
-            train, val = train_test_split(fit, stratify=fit['type'], test_size=0.2, random_state=1)
+            train = pd.read_csv(self.dataset / "train.tsv", sep="\t", header=0, names=["id", "type", "label"])
+            val = pd.read_csv(self.dataset / "val.tsv", sep="\t", header=0, names=["id", "type", "label"])
+            test = pd.read_csv(self.dataset / "test.tsv", sep="\t", header=0, names=["id", "type", "label"])
 
-        self.train_sequences = [Path(self.datafolder, f"{id}.fna") for id in train['id'].values]
-        self.val_sequences = [Path(self.datafolder, f"{id}.fna") for id in val['id'].values]
-        self.test_sequences = [Path(self.datafolder, f"{id}.fna") for id in test['id'].values]
-        
+        self.train_sequences = [self.dataset / "train" / "sequences" / f"{id}.fna" for id in train['id'].values]
+        self.val_sequences = [self.dataset / "val" / "sequences" / f"{id}.fna" for id in val['id'].values]
+        self.test_sequences = [self.dataset / "test" / "sequences" / f"{id}.fna" for id in test['id'].values]
+
         self.train_labels = torch.tensor(train['label'].values)
         self.val_labels = torch.tensor(val['label'].values)
         self.test_labels = torch.tensor(test['label'].values)
