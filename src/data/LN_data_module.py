@@ -115,7 +115,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         self.dataset = dataset
         self.num_workers = num_workers
         self.batch_size = batch_size
-        self.hmm_models = False
+        self.string_model = False
         
         if pad_pack:
             self.collate_fn = collate_fn_pad
@@ -129,72 +129,36 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
                 self.DatasetType = GCSequenceDataset
             case "hmm_match_sequence":
                 self.DatasetType = HMMMatchSequenceDataset
-                self.hmm_models = True
+                self.string_model = True
 
     def prepare_data(self):
         pass
 
     def setup(self, stage: str = None):
-        if self.train_indices is not None and self.val_indices is not None:
-            pass
-            # Update later..
-            # Used for cross-validation
-            # train = df_sampletable.iloc[self.train_indices]
-            # val = df_sampletable.iloc[self.val_indices]
-            # test = df_sampletable.iloc[self.test_indices]
-        else:
-            train = pd.read_csv(self.dataset / "train.tsv", sep="\t", header=0, names=["id", "type", "label"])
-            val = pd.read_csv(self.dataset / "val.tsv", sep="\t", header=0, names=["id", "type", "label"])
-            test = pd.read_csv(self.dataset / "test.tsv", sep="\t", header=0, names=["id", "type", "label"])
-
-        self.train_sequences = [self.dataset / "train" / "sequences" / f"{id}.fna" for id in train['id'].values]
-        self.val_sequences = [self.dataset / "val" / "sequences" / f"{id}.fna" for id in val['id'].values]
-        self.test_sequences = [self.dataset / "test" / "sequences" / f"{id}.fna" for id in test['id'].values]
-
-        self.train_labels = torch.tensor(train['label'].values)
-        self.val_labels = torch.tensor(val['label'].values)
-        self.test_labels = torch.tensor(test['label'].values)
-
-        if self.hmm_models:
-            if self.use_saved and Path(self.dataset, "hmm_seqs.pt").exists():
-                with open(Path(self.dataset, "hmm_seqs.pt"), "rb") as f:
-                    hmm_matches = torch.load(f)
-            else:
-                with tempfile.TemporaryDirectory() as tmp_work:
-                    # Get HMMs from phage satellite sequences only
-                    ps_files = [Path(self.dataset, "satellite_sequences", f"{id}.fna") for id in train[train['label'] == 1]['id'].values]
-                    hmm = get_marker_hmms(fna_files=ps_files,
-                                        tmp_folder=Path(tmp_work), get_topx=500)
-                    hmm_matches = {}
-                    hmm_matches['seqs'] = {}
-                    hmm_matches['labels'] = {}
-                    hmm_matches['seqs']['train'] = [get_marker_match_sequence(fna_file=fna_file, hmm=hmm) for fna_file in self.train_sequences]
-                    hmm_matches['seqs']['val'] = [get_marker_match_sequence(fna_file=fna_file, hmm=hmm) for fna_file in self.val_sequences]
-                    hmm_matches['seqs']['test'] = [get_marker_match_sequence(fna_file=fna_file, hmm=hmm) for fna_file in self.test_sequences]
-                    hmm_matches['labels']['train'] = self.train_labels
-                    hmm_matches['labels']['val'] = self.val_labels
-                    hmm_matches['labels']['test'] = self.test_labels
-                    
-                    torch.save(hmm_matches, Path(self.dataset, "hmm_seqs.pt"))
-
-            self.train_sequences = hmm_matches['seqs']['train']
-            self.val_sequences = hmm_matches['seqs']['val']
-            self.test_sequences = hmm_matches['seqs']['test']
-            self.train_labels = hmm_matches['labels']['train']
-            self.val_labels = hmm_matches['labels']['val']
-            self.test_labels = hmm_matches['labels']['test']
+        
+        if self.string_model:
+            self.data_splits = torch.load(self.dataset / "strings" / "pfam.pt")
             vocab = set()
-            for split in hmm_matches['seqs']:
-                vocab.update([x for seq in hmm_matches['seqs'][split] for x in seq])
+            for split in ['train', 'val', 'test']:
+                vocab.update(x for seq in self.data_splits[split]['sequences'] for x in seq)
             self.vocab_map = {name: i for i, name in enumerate(vocab)}
             self.vocab_size = len(self.vocab_map)
+        else:
+            self.data_splits = {
+                split: self.load_split_data(split) for split in ['train', 'val', 'test']
+            }
     
+    def load_split_data(self, split):
+        df = pd.read_csv(self.dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"])
+        sequences = [self.dataset / split / "sequences" / f"{id}.fna" for id in df['id'].values]
+        labels = torch.tensor(df['label'].values)
+        return {'sequences': sequences, 'labels': labels}
 
     def train_dataloader(self):
-        return DataLoader(self.DatasetType(self.train_sequences, self.train_labels, vocab_map=self.vocab_map), batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, collate_fn=self.collate_fn)
+        return DataLoader(self.DatasetType(self.data_splits['train']['sequences'], self.data_splits['train']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, collate_fn=self.collate_fn)
 
     def val_dataloader(self):
-        return DataLoader(self.DatasetType(self.val_sequences, self.val_labels, vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
+        return DataLoader(self.DatasetType(self.data_splits['val']['sequences'], self.data_splits['val']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
 
     def test_dataloader(self):
-        return DataLoader(self.DatasetType(self.test_sequences, self.test_labels, vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
+        return DataLoader(self.DatasetType(self.data_splits['test']['sequences'], self.data_splits['test']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)

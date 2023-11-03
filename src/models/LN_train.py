@@ -15,7 +15,7 @@ from src.models.LNSequenceModule import SequenceModule
 
 @hydra.main(config_path="../../configs", config_name="config", version_base="1.2")
 def main(cfg: DictConfig):
-    
+
     seed_everything(1)
     
     dataset_root = Path("data/processed/10_datasets/")
