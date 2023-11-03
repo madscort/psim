@@ -1,15 +1,15 @@
 project: "psim"
 accelerator: "gpu"
 devices: -1
-dataset: "prophage_95_fixed_25000_ps_reduced_90_ws"
+dataset: "dataset_v01"
 batch_size: 16
-num_workers: 8
-epochs: 1
-run_group: cnn
+num_workers: 4
+epochs: 20
+run_group: transformer
 run_name: config_test
 
 defaults:
-  - model: cnn
+  - model: transformer_profile
   - _self_
 
 optimizer:

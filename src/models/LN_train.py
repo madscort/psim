@@ -27,9 +27,11 @@ def main(cfg: DictConfig):
                                             pad_pack=cfg.model.data.pad_pack,
                                             use_saved=cfg.model.data.use_saved)
     data_module.setup()
-    # Populate vocabulary size if embedding layer is used.
+    # Populate vocabulary size and max sequence length if used.
     if 'vocab_size' in cfg.model.params:
         cfg.model.params.vocab_size = data_module.vocab_size
+    if 'max_seq_length' in cfg.model.params:
+        cfg.model.params.max_seq_length = data_module.max_seq_length
     
     wandb_logger = WandbLogger(project=cfg.project,
                                config=OmegaConf.to_container(cfg,
@@ -38,6 +40,7 @@ def main(cfg: DictConfig):
                                group=cfg.run_group)
     model = SequenceModule(model_config=cfg.model,
                            lr=cfg.optimizer.lr,
+                           batch_size=cfg.batch_size,
                            optimizer=cfg.optimizer.name)
 
     early_stop_callback = EarlyStopping(monitor='val_loss',
@@ -51,8 +54,7 @@ def main(cfg: DictConfig):
                       max_epochs=cfg.epochs,
                       logger=wandb_logger,
                       callbacks=[LearningRateMonitor(logging_interval='step'),
-                                 early_stop_callback,
-                                 ModelSummary(max_depth=10)])
+                                 early_stop_callback])
     
     trainer.fit(model, datamodule=data_module)
 

@@ -2,13 +2,11 @@ from pathlib import Path
 import pytorch_lightning as pl
 import pandas as pd
 import torch
-import tempfile
-from sklearn.model_selection import train_test_split
 from Bio import SeqIO
 from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
-from src.data.get_sequence import get_gene_gc_sequence, get_marker_hmms, get_marker_match_sequence
+from src.data.get_sequence import get_gene_gc_sequence
 
 
 
@@ -109,6 +107,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         self.use_saved = use_saved
         self.vocab_map = None
         self.vocab_size = None
+        self.max_seq_length = 0
         self.train_indices = train_indices
         self.val_indices = val_indices
         self.test_indices = test_indices
@@ -140,6 +139,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
             self.data_splits = torch.load(self.dataset / "strings" / "pfam.pt")
             vocab = set()
             for split in ['train', 'val', 'test']:
+                self.max_seq_length = max(self.max_seq_length, max(len(seq) for seq in self.data_splits[split]['sequences']))
                 vocab.update(x for seq in self.data_splits[split]['sequences'] for x in seq)
             self.vocab_map = {name: i for i, name in enumerate(vocab)}
             self.vocab_size = len(self.vocab_map)
@@ -155,10 +155,10 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         return {'sequences': sequences, 'labels': labels}
 
     def train_dataloader(self):
-        return DataLoader(self.DatasetType(self.data_splits['train']['sequences'], self.data_splits['train']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, collate_fn=self.collate_fn)
+        return DataLoader(self.DatasetType(self.data_splits['train']['sequences'], self.data_splits['train']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)
 
     def val_dataloader(self):
-        return DataLoader(self.DatasetType(self.data_splits['val']['sequences'], self.data_splits['val']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
+        return DataLoader(self.DatasetType(self.data_splits['val']['sequences'], self.data_splits['val']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)
 
     def test_dataloader(self):
-        return DataLoader(self.DatasetType(self.data_splits['test']['sequences'], self.data_splits['test']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn)
+        return DataLoader(self.DatasetType(self.data_splits['test']['sequences'], self.data_splits['test']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)

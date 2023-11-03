@@ -11,6 +11,7 @@ params:
   num_classes: 2
   fc_dropout_rate: 0.20
   vocab_size: ${vocab_size} # Auto-populated by trainer.
+  max_seq_length: ${max_seq_length} # Auto-populated by trainer.
   embedding_dim: 10
   num_heads: 5
   num_layers: 1

@@ -12,6 +12,7 @@ class SequenceModule(pl.LightningModule):
     def __init__(self,
                  model_config: DictConfig,
                  lr: float,
+                 batch_size: int,
                  optimizer: str,
                  fold_num: int = None):
         super(SequenceModule, self).__init__()
@@ -20,6 +21,7 @@ class SequenceModule(pl.LightningModule):
         self.model = instantiate(model_config.params)
         self.criterion = nn.CrossEntropyLoss()
         self.lr = lr
+        self.batch_size = batch_size
         self.optimizer = optimizer
         self.test_y_hat = []
         self.test_y = []
@@ -33,11 +35,11 @@ class SequenceModule(pl.LightningModule):
         if self.fold_num is not None:
             wandb.log({f"train_CV{self.fold_num}_loss" : loss.item(),
                     f"train_CV{self.fold_num}_acc" : acc.item()})
-            self.log('train_loss', loss, prog_bar=True, logger=False)
-            self.log('train_acc', acc, prog_bar=True, logger=False)
+            self.log('train_loss', loss, prog_bar=True, logger=False, batch_size=self.batch_size)
+            self.log('train_acc', acc, prog_bar=True, logger=False, batch_size=self.batch_size)
         else:
-            self.log('train_loss', loss, prog_bar=True, logger=True)
-            self.log('train_acc', acc, prog_bar=True, logger=True)
+            self.log('train_loss', loss, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log('train_acc', acc, prog_bar=True, logger=True, batch_size=self.batch_size)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -45,11 +47,11 @@ class SequenceModule(pl.LightningModule):
         if self.fold_num is not None:
             wandb.log({f"val_CV{self.fold_num}_loss" : loss.item(),
                     f"val_CV{self.fold_num}_acc" : acc.item()})
-            self.log('val_loss', loss, prog_bar=True, logger=False)
-            self.log('val_acc', acc, prog_bar=True, logger=False)
+            self.log('val_loss', loss, prog_bar=True, logger=False, batch_size=self.batch_size)
+            self.log('val_acc', acc, prog_bar=True, logger=False, batch_size=self.batch_size)
         else:
-            self.log('val_loss', loss, prog_bar=True, logger=True)
-            self.log('val_acc', acc, prog_bar=True, logger=True)
+            self.log('val_loss', loss, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log('val_acc', acc, prog_bar=True, logger=True, batch_size=self.batch_size)
         return preds
     
     def on_test_epoch_start(self) -> None:
@@ -87,10 +89,10 @@ class SequenceModule(pl.LightningModule):
         auc = roc_auc_score(y_true, y_pred_prob_class_1)
         
         # log metrics
-        self.log('test_acc', torch.tensor(acc, dtype=torch.float32))
-        self.log('test_f1', torch.tensor(f1, dtype=torch.float32))
-        self.log('test_precision', torch.tensor(precision, dtype=torch.float32))
-        self.log('test_auc', torch.tensor(auc, dtype=torch.float32))
+        self.log('test_acc', torch.tensor(acc, dtype=torch.float32), batch_size=self.batch_size)
+        self.log('test_f1', torch.tensor(f1, dtype=torch.float32), batch_size=self.batch_size)
+        self.log('test_precision', torch.tensor(precision, dtype=torch.float32), batch_size=self.batch_size)
+        self.log('test_auc', torch.tensor(auc, dtype=torch.float32), batch_size=self.batch_size)
         
         # log ROC curve in wandb
         y_true_np = y_true.numpy()

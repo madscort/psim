@@ -108,3 +108,4 @@ target/
 
 # DTU-HPC logs
 /.BSUBlogs/
+./src/models/drafts/test.py
