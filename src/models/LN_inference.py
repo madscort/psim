@@ -4,9 +4,10 @@ import torch
 import sys
 import pandas as pd
 from torch.nn.functional import one_hot
-from sklearn.model_selection import train_test_split
 import collections
 from src.models.LNSequenceModule import SequenceModule
+from src.data.LN_data_module import encode_sequence
+from src.data.attach_pangenome import get_one_string
 from torch.nn.functional import softmax
 translate = str.maketrans("ACGTURYKMSWBDHVN", "0123444444444444")
 
@@ -21,9 +22,10 @@ def main():
     ps_sample = collections.namedtuple("ps_sample", ["sample_id", "type", "ref_seq", "coord_start", "coord_end"])
     ref_seqs = Path("data/processed/01_combined_databases/reference_sequences/")
     ps_taxonomy = Path("data/processed/01_combined_databases/ps_tax_info.tsv")
-    output_file = Path("data/visualization/sliding_window/predictions_version01.tsv")
+    output_file = Path("data/visualization/sliding_window/predictions_version01_transformer.tsv")
     stride = 5000
     chunk_size = 25000
+    transformer = True
 
     types = {}
     samples = {}
@@ -90,7 +92,7 @@ def main():
     print(len(sampleids))
     overlaps = 0
     for n, id in enumerate(sampleids):
-        if n == 50:
+        if n == 5:
             break
         if n % 10 == 0:
             print(n)
@@ -191,9 +193,11 @@ def main():
     #         seq += line.strip()
     #     seqs.append(seq)
 
-    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/inception/checkpoint/zrr84ejw_version01.ckpt").absolute(),
+    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("psim/p1igwf4v/checkpoints/epoch=7-step=4272.ckpt").absolute(),
                                                 map_location=torch.device('cpu'))
     model.eval()
+    if transformer:
+        vocab_map = torch.load(Path("data/processed/10_datasets/attachings/vocab_map.pt"))
     seq_preds = []
     all_preds = []
     all_preds_prob = []
@@ -211,8 +215,13 @@ def main():
         probabilities = []
         
         for chunk in chunks:
-            sequence = torch.tensor([int(base.translate(translate)) for base in chunk], dtype=torch.float)
-            sequence = one_hot(sequence.to(torch.int64), num_classes=5).to(torch.float).permute(1, 0).unsqueeze(0)
+            if transformer:
+                model_string = get_one_string(chunk, Path("data/processed/10_datasets/attachings/hmms/hmms.hmm"))
+                encoded_string = torch.tensor(encode_sequence(model_string, vocab_map))
+                sequence = {"seqs": encoded_string.unsqueeze(0)}
+            else:
+                sequence = torch.tensor([int(base.translate(translate)) for base in chunk], dtype=torch.float)
+                sequence = one_hot(sequence.to(torch.int64), num_classes=5).to(torch.float).permute(1, 0).unsqueeze(0)
             prediction = model(sequence)
             predictions.append(prediction.argmax(dim=1).tolist()[0])
             probabilities.append(softmax(prediction, dim=1)[0][1].item())

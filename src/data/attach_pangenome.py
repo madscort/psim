@@ -44,7 +44,7 @@ from tempfile import TemporaryDirectory
 
 
 Protein = namedtuple("Protein", ["genome", "protein", "seq"])
-Hit = namedtuple('Hit', ['target_name', 'target_accession', 'evalue'])
+Hit = namedtuple('Hit', ['target_name', 'target_accession', 'bitscore'])
 
 def gene_prediction(fasta: Path=None) -> list[Protein]:
     record = SeqIO.read(str(fasta), "fasta")
@@ -52,6 +52,13 @@ def gene_prediction(fasta: Path=None) -> list[Protein]:
     orf_finder = pyrodigal_gv.ViralGeneFinder(meta=True)
     for i, pred in enumerate(orf_finder.find_genes(bytes(record.seq))):
         proteins.append(Protein(genome=record.id, protein=f"{record.id}|{i+1}", seq=pred.translate()))
+    return proteins
+
+def gene_prediction_string(sequence: str=None) -> list[Protein]:
+    proteins = []
+    orf_finder = pyrodigal_gv.ViralGeneFinder(meta=True)
+    for i, pred in enumerate(orf_finder.find_genes(sequence=sequence)):
+        proteins.append(Protein(genome="string", protein=f"string|{i+1}", seq=pred.translate()))
     return proteins
 
 def get_samples(sampletable: Path=None) -> list[Path]:
@@ -131,11 +138,12 @@ class MMseqs2:
         return representatives
 
 class HMMER:
-    def __init__(self, hmm: Path, db: Path, out: Path):
+    def __init__(self, hmm: Path, db: Path, out: Path, scan: bool = False):
         self.hmm = hmm
         self.db = db
         self.out = out
         self.out.mkdir(parents=True, exist_ok=True)
+        self.wscan = scan
     
     def search(self, evalue: float = 1e-3, cpus: int = 6):
         cmd = ['hmmsearch', '--acc', '--tblout', self.out / "hmmsearch_res.txt", '--cpu', f"{cpus}", '-E', f"{evalue}", self.hmm, self.db]
@@ -143,16 +151,25 @@ class HMMER:
         if subprocess_return.returncode != 0:
             raise Exception(f"Error running hmmsearch: {subprocess_return}")
     
+    def scan(self, evalue: float = 1e-3, cpus: int = 6):
+        cmd = ['hmmscan', '--acc', '--tblout', self.out / "hmmsearch_res.txt", '--cpu', f"{cpus}", '-E', f"{evalue}", self.hmm, self.db]
+        subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+        if subprocess_return.returncode != 0:
+            raise Exception(f"Error running hmmscan: {subprocess_return}")
+
     def parse(self):
         query_hits = {}
         with open(self.out / "hmmsearch_res.txt") as f:
              for line in f:
                 if not line.startswith("#"):
                     res = line.split()
-                    qname, tname, tacc, evalue = res[0], res[2], res[3], float(res[4])
+                    if self.wscan:
+                        qname, tname, tacc, bitscore = res[2], res[0], res[1], float(res[5])
+                    else:
+                        qname, tname, tacc, bitscore = res[0], res[2], res[3], float(res[5])
                     if qname not in query_hits:
                         query_hits[qname] = []
-                    query_hits[qname].append(Hit(tname, tacc, evalue))
+                    query_hits[qname].append(Hit(tname, tacc, bitscore))
         return query_hits
     
     def get_best_hits(self):
@@ -160,7 +177,7 @@ class HMMER:
         all_hits = self.parse()
 
         for query_name, hits in all_hits.items():
-            hits.sort(key=lambda x: x.evalue)
+            hits.sort(key=lambda x: x.bitscore, reverse=True)
             best_hits[query_name] = hits[0]
         return best_hits
     
@@ -169,94 +186,66 @@ class HMMER:
         accessions = set([best_hits[hit].target_accession for hit in best_hits])
         return accessions
     
-    def get_hmms(self)-> Path:
-        accessions = self.get_accessions()
-        with open(self.out / "accessions.txt", "w") as f:
+    def get_hmms(self, accessions: set = None, output_path: Path = None) -> Path:
+        if accessions is None:
+            accessions = self.get_accessions()
+            output_path = self.out
+
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_path / "accessions.txt", "w") as f:
             for accession in accessions:
                 print(accession, file=f)
-        cmd = ['hmmfetch', '-o', self.out / "hmms.hmm", '-f', self.hmm, self.out / "accessions.txt"]
+        cmd = ['hmmfetch', '-o', output_path / "hmms.hmm", '-f', self.hmm, output_path / "accessions.txt"]
         subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
         if subprocess_return.returncode != 0:
             raise Exception(f"Error running hmmfetch: {subprocess_return}")
         
-        cmd = ['hmmpress', self.out / "hmms.hmm"]
+        cmd = ['hmmpress', output_path / "hmms.hmm"]
         subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
         if subprocess_return.returncode != 0:
             raise Exception(f"Error running hmmpress: {subprocess_return}")
-        return self.out / "hmms.hmm"
+        return output_path / "hmms.hmm"
     def db_path(self):
         return self.out / "hmms.hmm"
 
-if __name__ == '__main__':
-    log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    logging.basicConfig(level=logging.INFO, format=log_fmt)
-    project_dir = Path(__file__).resolve().parents[2]
-    load_dotenv(find_dotenv())
-
-    dataset = Path("data/processed/10_datasets/dataset_v01")
-    sampletable = dataset / "train.tsv"
-    output = Path("data/processed/10_datasets/attachings")
-    output_path = dataset / "strings"
-    samples = get_samples(sampletable)
-    output.mkdir(parents=True, exist_ok=True)
-    output_path.mkdir(parents=True, exist_ok=True)
-    
-    with open(output / "proteins.faa", "w") as f_out:
-        for sample in samples:
-            sample_path = Path(dataset, "train", "satellite_sequences", f"{sample}.fna")
-            proteins = gene_prediction(sample_path)
+def get_one_string(sequence, hmm_db):
+    with TemporaryDirectory() as tmp_work:
+        tmp_work = Path(tmp_work)
+        with open(tmp_work / "proteins.faa", "w") as f_out:
+            protein_string = {}
+            proteins = gene_prediction_string(sequence)
             for protein in proteins:
+                protein_string[protein.protein] = "no_hit"
                 print(f">{protein.protein}", file=f_out)
                 print(protein.seq, file=f_out)
+        hmmer_scan = HMMER(hmm=hmm_db, db=tmp_work / "proteins.faa", out=tmp_work / "hmmer_scan")
+        hmmer_scan.search()
+        hits = hmmer_scan.get_best_hits()
+        for pr in protein_string:
+            if pr in hits:
+                protein_string[pr] = hits[pr].target_accession
+        return list(protein_string.values())
 
-    mm = MMseqs2(db=output / "proteins.faa", out=output / "mmseqsDB")
-    mm.createdb()
-    mm.cluster()
-    mm.createtsv()
-    counts = mm.counts()
-    with open(output / "size_dist.tsv", "w") as f_out:
-        for protein in counts:
-            print(protein, counts[protein], file=f_out, sep="\t")
+def get_hmms(accessions: set = None, hmm_db: Path = None, output_path: Path = None) -> Path:
 
-    # Get representatives sequences for each cluster
-    min_cluster_size = 5
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_path / "accessions.txt", "w") as f:
+            for accession in accessions:
+                print(accession, file=f)
+        cmd = ['hmmfetch', '-o', output_path / "hmms.hmm", '-f', hmm_db, output_path / "accessions.txt"]
+        subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+        if subprocess_return.returncode != 0:
+            raise Exception(f"Error running hmmfetch: {subprocess_return}")
+        
+        cmd = ['hmmpress', output_path / "hmms.hmm"]
+        subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+        if subprocess_return.returncode != 0:
+            raise Exception(f"Error running hmmpress: {subprocess_return}")
+        return output_path / "hmms.hmm"
 
-    representatives = mm.get_representatives(min_cluster_size)
-    logging.info(f"Number of cluster representatives: {len(representatives)}")
-
-    records = get_records_from_identifiers(fasta=output / "proteins.faa", identifiers=representatives)
-    SeqIO.write(records, output / "representatives.faa", "fasta")
-
-    # Get hmms for each cluster
-    pfam_hmm = Path("data/external/databases/pfam/pfam_A/Pfam-A.hmm")
-    hmmer = HMMER(hmm=pfam_hmm, db=output / "representatives.faa", out=output / "hmms")
-    hmmer.search()
-    original_clusters = set(representatives)
-    hits = hmmer.get_best_hits()
-    covered_clusters = set([hit for hit in hits])
-    accessions = set([hits[hit].target_accession for hit in hits])
-    
-    print(f"Original clusters: {len(original_clusters)}")
-    print(f"Covered clusters: {len(covered_clusters)}")
-    print(f"Missing clusters: {len(original_clusters - covered_clusters)}")
-    print(f"Number of non-redundant accessions: {len(accessions)}")
-
-    # Get hmms for each accession
-    hmmer.get_hmms()
-    result_db = hmmer.db_path()
-
-    # Scan all representative sequences with all hmms
-    hmmer_scan = HMMER(hmm=result_db, db=output / "representatives.faa", out=output / "hmmer_scan")
-    hmmer_scan.search()
-    hits = hmmer_scan.get_best_hits()
-
-    hit_clusters = set()
-    for hit in hits:
-        hit_clusters.add(hit)
-
-    print(f"DB representatives hits: {len(hit_clusters)}")
-    print(f"Missing clusters: {len( original_clusters - hit_clusters)}")
-
+def attach(dataset) -> Path:
     splits = ["train","val","test"]
     data_splits = {
         split: load_split_data(dataset, split) for split in splits
@@ -298,3 +287,214 @@ if __name__ == '__main__':
 
     # Save data
     torch.save(data_splits, output_path / "pfam.pt")
+
+    return output_path / "pfam.pt"
+
+
+if __name__ == '__main__':
+    log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    logging.basicConfig(level=logging.INFO, format=log_fmt)
+    project_dir = Path(__file__).resolve().parents[2]
+    load_dotenv(find_dotenv())
+
+    dataset = Path("data/processed/10_datasets/dataset_v01")
+    sampletable = dataset / "train.tsv"
+    pfam_hmm = Path("data/external/databases/pfam/pfam_A/Pfam-A.hmm")
+    output = Path("data/processed/10_datasets/attachings")
+    output_path = dataset / "strings" / "pfama"
+    samples = get_samples(sampletable)
+    output.mkdir(parents=True, exist_ok=True)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    # 1
+    COLLECT_PROTEINS = False
+    # 2
+    CLUSTER = False
+    # 3
+    SAVE_REPRESENTATIVES = False
+    # 4
+    FIND_HMMS = False
+    # 5
+    FETCH_HMMS = False
+    # 6
+    SCAN_REPRESENTATIVES = False
+    # 7
+    TRANSLATE_DATASET = False
+    # 8
+    SCAN_DATASET = False
+    # 9
+    ATTACH_TO_DATASET = True
+
+    if COLLECT_PROTEINS:
+        logging.info("Collecting proteins...")
+        with open(output / "proteins.faa", "w") as f_out:
+            for sample in samples:
+                sample_path = Path(dataset, "train", "satellite_sequences", f"{sample}.fna")
+                proteins = gene_prediction(sample_path)
+                for protein in proteins:
+                    print(f">{protein.protein}", file=f_out)
+                    print(protein.seq, file=f_out)
+        logging.info("Done collecting proteins.")
+
+    mm = MMseqs2(db=output / "proteins.faa", out=output / "mmseqsDB")
+    if CLUSTER:
+        logging.info("Clustering...")
+        mm.createdb()
+        mm.cluster()
+        mm.createtsv()
+        counts = mm.counts()
+        with open(output / "size_dist.tsv", "w") as f_out:
+            for protein in counts:
+                print(protein, counts[protein], file=f_out, sep="\t")
+        logging.info("Done clustering.")
+    
+    # Get representatives sequences for each cluster
+    min_cluster_size = 5
+
+    representatives = mm.get_representatives(min_cluster_size)
+    logging.info(f"Number of cluster representatives: {len(representatives)}")
+    
+    if SAVE_REPRESENTATIVES:
+        logging.info("Saving representatives...")
+        records = get_records_from_identifiers(fasta=output / "proteins.faa", identifiers=representatives)
+        SeqIO.write(records, output / "representatives.faa", "fasta")
+        logging.info("Done saving representatives.")
+
+    # Get hmms for each cluster
+
+    hmmer = HMMER(hmm=pfam_hmm, db=output / "representatives.faa", out=output / "hmms")
+    if FIND_HMMS:
+        logging.info("Finding hmms...")
+        hmmer.search()
+        logging.info("Done finding hmms.")
+
+    original_clusters = set(representatives)
+    hits = hmmer.get_best_hits()
+    covered_clusters = set([hit for hit in hits])
+    accessions = set([hits[hit].target_accession for hit in hits])
+    
+    print(f"Original clusters: {len(original_clusters)}")
+    print(f"Covered clusters: {len(covered_clusters)}")
+    print(f"Missing clusters: {len(original_clusters - covered_clusters)}")
+    print(f"Number of non-redundant accessions: {len(accessions)}")
+
+    # Get hmms for each accession
+    if FETCH_HMMS:
+        logging.info("Fetching hmms...")
+        hmmer.get_hmms()
+        logging.info("Done fetching hmms.")
+    result_db = hmmer.db_path()
+
+    # Scan all representative sequences with all hmms
+    hmmer_scan = HMMER(hmm=result_db, db=output / "representatives.faa", out=output / "hmmer_scan")
+    
+    if SCAN_REPRESENTATIVES:
+        logging.info("Scanning representatives...")
+        hmmer_scan.search()
+        logging.info("Done scanning representatives.")
+    
+    hits = hmmer_scan.get_best_hits()
+
+    hit_clusters = set([hit for hit in hits])
+
+    print(f"DB representatives hits: {len(hit_clusters)}")
+    print(f"Missing clusters: {len( original_clusters - hit_clusters)}")
+
+    accessions = set([hits[hit].target_accession for hit in hits])
+    print(f"Number of non-redundant accessions used: {len(accessions)}")
+    
+    splits = ["train", "val", "test"]
+
+    if TRANSLATE_DATASET:
+        logging.info("Translating dataset...")
+        data_splits = {
+            split: load_split_data(dataset, split) for split in splits
+        }
+
+        translated_data_splits = {
+            split: {'sequences': [None]*len(data_splits[split]['labels']), 'labels': data_splits[split]['labels']} for split in splits
+        }
+
+        for split in splits:
+            print(f"Split: {split}")
+            
+            sequences = data_splits[split]['sequences']
+            with open(output / f"{split}_split.faa", "w") as f_out:
+                print("Translating sequences...")
+                
+                for n, sequence in enumerate(tqdm(sequences)):
+                    
+                    protein_string = {}
+                    proteins = gene_prediction(sequence)
+                    
+                    for protein in proteins:
+                        protein_string[protein.protein] = "no_hit"
+                        print(f">{protein.protein}", file=f_out)
+                        print(protein.seq, file=f_out)
+                    
+                    translated_data_splits[split]['sequences'][n] = protein_string
+        torch.save(translated_data_splits, output / "translated.pt")
+        logging.info("Done translating dataset.")
+
+    
+    hmm_splits = { split: HMMER(hmm=result_db, db=output / f"{split}_split.faa", out=output / f"hmmer_{split}_split", scan=True) for split in splits}
+    
+    if SCAN_DATASET:
+        logging.info("Scanning dataset...")
+        for split in splits:
+            print(f"Split: {split}")
+            hmm_splits[split].scan()
+        logging.info("Done scanning dataset.")
+    
+    if ATTACH_TO_DATASET:
+        logging.info("Attaching dataset...")
+        hmm_data_splits = torch.load(output / "translated.pt")
+
+        for split in splits:
+            print(f"Split: {split}")
+            hits = hmm_splits[split].get_best_hits()
+            for n, protein_string in enumerate(tqdm(hmm_data_splits[split]['sequences'])):
+                for protein in protein_string:
+                    if protein in hits:
+                        protein_string[protein] = hits[protein].target_accession
+                hmm_data_splits[split]['sequences'][n] = list(protein_string.values())
+
+        # Get vocabulary from all non-redundant accessions + 'no_hit'
+        vocab = set()  
+        for split in splits:
+            vocab.update(x for seq in hmm_data_splits[split]['sequences'] for x in seq)
+        vocab_map = {name: i for i, name in enumerate(vocab)}
+        vocab.remove("no_hit")
+        print(f"Number of non-redundant accessions in HMM database: {len(accessions)}")
+        print(f"Number of non-redundant accessions used in dataset: {len(vocab)}")
+        print(f"Accessions numbers not used: {len(accessions - vocab)}")
+        torch.save(hmm_data_splits, output_path / "dataset.pt")
+        torch.save(vocab_map, output_path / "vocab_map.pt")
+
+        logging.info("Done attaching dataset.")
+    
+
+def add_missing_clusters():
+    # Find hmms for missing clusters:
+    missing_representatives = original_clusters - hit_clusters
+
+    # Test with checkV hmm database
+    checkV = Path("data/external/databases/checkv/checkv-db-v1.5/hmm_db/checkv_hmms")
+    with TemporaryDirectory() as tmp_work:
+        tmp_work = Path(tmp_work)
+        records = get_records_from_identifiers(fasta=output / "proteins.faa", identifiers=missing_representatives)
+        SeqIO.write(records, tmp_work / "representatives.faa", "fasta")
+        hits_list = []
+        for profile_set in range(1,81):
+            print(f"Profile set: {profile_set}")
+            hmmer_scan = HMMER(hmm=checkV / f"{profile_set}.hmm", db=tmp_work / "representatives.faa", out=tmp_work / "hmmer_scan")
+            hmmer_scan.search()
+            hits = hmmer_scan.get_best_hits()
+            print(hits)
+            if profile_set == 10:
+                break
+    # Get best hits for each representative
+    for hits in hits_list:
+        for hit in hits:
+            hit_clusters.add(hit)
+    print(len(hits_list))
