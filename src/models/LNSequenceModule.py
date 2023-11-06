@@ -3,7 +3,7 @@ import wandb
 import torch.nn as nn
 import pytorch_lightning as pl
 from hydra.utils import instantiate
-
+from torch.optim.lr_scheduler import OneCycleLR
 from torchmetrics.functional import accuracy
 from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score
 from omegaconf import DictConfig
@@ -13,18 +13,23 @@ class SequenceModule(pl.LightningModule):
                  model_config: DictConfig,
                  lr: float,
                  batch_size: int,
+                 steps_per_epoch: int,
                  optimizer: str,
+                 class_weights: torch.Tensor,
+                 vocab_map: dict,
                  fold_num: int = None):
         super(SequenceModule, self).__init__()
 
         self.fold_num = fold_num
         self.model = instantiate(model_config.params)
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         self.lr = lr
         self.batch_size = batch_size
+        self.steps_per_epoch = steps_per_epoch
         self.optimizer = optimizer
         self.test_y_hat = []
         self.test_y = []
+        self.vocab_map = vocab_map
         self.save_hyperparameters(logger=False)
 
     def forward(self, x):
@@ -118,7 +123,17 @@ class SequenceModule(pl.LightningModule):
         else:
             raise ValueError('Optimizer not supported')
         
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 0.95 ** epoch)
+        # Scheduler with warmup
+        scheduler = OneCycleLR(
+            optimizer,
+            max_lr=self.lr, # The peak LR to achieve after warmup
+            epochs=self.trainer.max_epochs, # Total number of epochs
+            steps_per_epoch=self.steps_per_epoch, # Number of batches in one epoch
+            pct_start=0.1, # The percentage of the cycle spent increasing the LR
+            anneal_strategy='cos', # How to anneal the LR (options: 'cos' or 'linear')
+            final_div_factor=1e4, # The factor to reduce the LR at the end
+        )
+
         monitor = 'val_loss'
         return {'optimizer': optimizer, 'lr_scheduler': scheduler, 'monitor': monitor}
     
@@ -130,3 +145,12 @@ class SequenceModule(pl.LightningModule):
         loss = self.criterion(logits, y)
         acc = accuracy(preds, y, 'binary')
         return preds, loss, acc
+
+    def on_save_checkpoint(self, checkpoint):
+        if self.vocab_map != None:
+            checkpoint['vocabulary_map'] = self.vocab_map
+        else:
+            heckpoint['vocabulary_map'] = {'no_vocab_map': 0}
+    
+    def on_load_checkpoint(self, checkpoint):
+        self.vocab_map = checkpoint['vocabulary_map']

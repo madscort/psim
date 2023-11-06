@@ -1,5 +1,6 @@
 import hydra
 import wandb
+import sys
 from pathlib import Path
 from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
@@ -32,6 +33,10 @@ def main(cfg: DictConfig):
     if 'max_seq_length' in cfg.model.params:
         cfg.model.params.max_seq_length = data_module.max_seq_length
     
+    class_weights = data_module.class_weights
+    steps_per_epoch = data_module.steps_per_epoch
+    vocab_map = data_module.vocab_map
+
     wandb_logger = WandbLogger(project=cfg.project,
                                config=OmegaConf.to_container(cfg,
                                                              resolve=True),
@@ -40,7 +45,10 @@ def main(cfg: DictConfig):
     model = SequenceModule(model_config=cfg.model,
                            lr=cfg.optimizer.lr,
                            batch_size=cfg.batch_size,
-                           optimizer=cfg.optimizer.name)
+                           steps_per_epoch=steps_per_epoch,
+                           optimizer=cfg.optimizer.name,
+                           class_weights=class_weights,
+                           vocab_map=vocab_map)
 
     early_stop_callback = EarlyStopping(monitor='val_loss',
                                         min_delta=0.00,
