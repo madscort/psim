@@ -16,17 +16,20 @@ from src.data.meta_contig_sampling import get_meta_contigs, fixed_length_contig_
 def create_dataset():
     input = Path("/Users/madsniels/Documents/_DTU/speciale/cpr/code/psim/data/processed/01_combined_renamed/reduced_90")
     root = Path("data/processed/10_datasets")
-    dataset_id = "phage_25_fixed_25000_reduced_90_ws"
+    dataset_id = "prophage_95_fixed_25000_ps_minimal_90_ws"
     dataset_root = Path(root, dataset_id)
     tmp = Path(dataset_root, ".tmp")
     tmp.mkdir(parents=True, exist_ok=True)
 
     fixed_length = True
     length = 25000
-    negative_samplesize = 2000
+    negative_samplesize = 1500
 
-    # Distribution of negative sample types (metagenomic, phage sequence):
-    distribution = (0.75, 0.25)
+    # Old default Path("data/raw/03_viral_sequences/all_phages.fa.gz")
+    viral_input = Path("data/processed/05_viral_sequences/imgvr_filtered/cd.hit.IMGVR_minimal_seqs.90.fna.gz")
+
+    # Distribution of negative sample types (metagenomic, phage sequence). Add factor for additional negative samples:
+    distribution = (0.05, 0.95)
 
     # Get satellites:
     sat_contig_sampling(fixed=fixed_length,
@@ -35,7 +38,7 @@ def create_dataset():
                         input_root=input,
                         output_root=tmp)
     
-    ## Get negative samples
+    # Get negative samples
 
     # Get metagenomic contigs:
     if fixed_length:
@@ -51,9 +54,11 @@ def create_dataset():
     if fixed_length:
         vir_contigs = fixed_length_viral_sampling(number = np.ceil(distribution[1]*negative_samplesize),
                                                   length=length,
+                                                  input_fasta_path=viral_input,
                                                   output_root=tmp)
     else:
         vir_contigs = get_viral_contigs(number = np.ceil(distribution[1]*negative_samplesize),
+                                        input_fasta_path=viral_input,
                                         output_root=tmp)
 
     # Create sampletable:

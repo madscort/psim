@@ -38,13 +38,13 @@ def main():
 
     # Output files
 
-    mapping_table = Path(project_dir, "data/processed/01_combined_renamed/renaming_map.tsv")
-    satellite_coord = Path(project_dir, "data/processed/01_combined_renamed/satellite_coordinates.tsv")
-    sample_table = Path(project_dir, "data/processed/01_combined_renamed/sample_table.tsv")
-    all_sequences = Path(project_dir, "data/processed/01_combined_renamed/all_sequences.fna")
-    all_proteins = Path(project_dir, "data/processed/01_combined_renamed/all_proteins.faa")
-    all_reference_sequences = Path(project_dir, "data/processed/01_combined_renamed/all_reference_sequences.fna")
-    tmp_genomes_rocha = Path(project_dir, "data/processed/01_combined_renamed/tmp_genomes_rocha.fna")
+    mapping_table = Path(project_dir, "data/processed/01_combined_databases/renaming_map.tsv")
+    satellite_coord = Path(project_dir, "data/processed/01_combined_databases/satellite_coordinates.tsv")
+    sample_table = Path(project_dir, "data/processed/01_combined_databases/sample_table.tsv")
+    all_sequences = Path(project_dir, "data/processed/01_combined_databases/all_sequences.fna")
+    all_proteins = Path(project_dir, "data/processed/01_combined_databases/all_proteins.faa")
+    all_reference_sequences = Path(project_dir, "data/processed/01_combined_databases/all_reference_sequences.fna")
+    tmp_genomes_rocha = Path(project_dir, "data/processed/01_combined_databases/tmp_genomes_rocha.fna")
     
     # Urvish manual update of protein files:
     new_protein_id = {

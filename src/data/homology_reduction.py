@@ -5,9 +5,17 @@ import subprocess
 import sys
 import gzip
 import pandas as pd
+import collections
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from dotenv import find_dotenv, load_dotenv
 from Bio import SeqIO
+
+
+# mads 2023-10-23
+# Script for homology reduction of samples in sampletable + various utilty functions.
+# Takes a sampletable and corresponding fasta file as input
+# Outputs a new sampletable with reduced homology
 
 def cluster_reduce(identity: float = 0.9, input_data: Path = None, output_path: Path = None):
     """ Use CD-HIT-est to reduce homology by clustering on sequence identity """
@@ -85,5 +93,49 @@ if __name__ == '__main__':
     # find .env automagically by walking up directories until it's found, then
     # load up the .env entries as environment variables
     load_dotenv(find_dotenv())
+    
+    input_sampletable = Path("data/processed/02_preprocessed_database/01_deduplication/sampletable.tsv")
+    output_sampletable = Path("data/processed/02_preprocessed_database/02_homology_reduction/sampletable.tsv")
+    input_fasta = Path("data/processed/01_combined_databases/all_sequences.fna")
+    ps_sample = collections.namedtuple("ps_sample", ["sample_id", "type", "label"])
+    identity = 0.90
 
-    cluster_reduce(0.90, Path("/Users/madsniels/Documents/_DTU/speciale/cpr/code/psim/data/processed/01_combined_renamed"))
+    # Get samples
+    samples = {}
+    with open(input_sampletable, "r") as f:
+        for line in f:
+            line = line.strip().split("\t")
+            samples[line[0]] = ps_sample(line[0], line[1], line[2])
+
+    # Create temporary folder for CD-HIT-est
+
+    with TemporaryDirectory() as tmp:
+        # Create fasta file with all sequences:
+        cd_hit_in = Path(tmp, "cd_hit_in.fna")
+        cd_hit_out = Path(tmp, "cd_hit_out.fna")
+        
+        with open(input_fasta, "r") as f, open(cd_hit_in, "w") as out:
+            for record in SeqIO.parse(f, "fasta"):
+                if record.id in samples:
+                    SeqIO.write(record, out, "fasta")
+
+        # Run CD-HIT-est
+        run_cd_hit(cd_hit_in, identity, cd_hit_out)
+
+        # Parse output
+        identifiers = []
+        with open(cd_hit_out, "r") as f:
+            for record in SeqIO.parse(f, "fasta"):
+                identifiers.append(record.id)
+        
+    if len(identifiers) == len(set(identifiers)):
+        logging.info(f"Reduced sequences to {len(set(identifiers))} with identity {identity}")
+    else:
+        logging.info(f"Reduced sequences to {len(set(identifiers))} with identity {identity} BUT {len(identifiers) - len(set(identifiers))} duplicates were found!")
+
+    # Reduce sampletable based on output:
+    with open(output_sampletable, "w") as out_f:
+        for identifier in identifiers:
+            out_f.write(f"{identifier}\t{samples[identifier].type}\t{samples[identifier].label}\n")
+
+    #cluster_reduce(0.80, Path("/Users/madsniels/Documents/_DTU/speciale/cpr/code/psim/data/processed/01_combined_renamed"))

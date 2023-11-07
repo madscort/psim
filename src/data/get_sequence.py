@@ -149,6 +149,17 @@ def get_gene_gc_sequence(fna_file: Path = Path("data/processed/10_datasets/phage
             output.append(gene.gc_cont)
     return output
 
+def get_protein_seq_str(fna_file: Path) -> [str]:
+    """ Takes a fna file and returns a list of proteins as strings."""
+
+    pyro = pyrodigal.GeneFinder(meta=True)
+    proteins = list()
+    with open(fna_file, 'r') as f:
+        for sequence in SeqIO.parse(f, "fasta"):
+            for n, gene in enumerate(pyro.find_genes(bytes(sequence.seq))):
+                proteins.append(gene.translate(include_stop=False))
+    return proteins
+
 def get_protein_seq(fna_files: [Path], faa_file: Path) -> Path:
     """ Takes a fna file and saves all proteins. Returns path to faa file."""
 

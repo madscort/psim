@@ -1,0 +1,19 @@
+type: "Transformer"
+name: "BasicInception"
+
+data:
+  return_type: "hmm_match_sequence" # "fna" "hmm_match_sequence"
+  pad_pack: True # Necessary when working with non-fixed length seqs.
+  use_saved: True # Use pickled input if available.
+
+params:
+  _target_: src.models.Transformer_collection.BasicTransformer
+  num_classes: 2
+  fc_dropout_rate: 0.20
+  vocab_size: ${vocab_size} # Auto-populated by trainer.
+  max_seq_length: ${max_seq_length} # Auto-populated by trainer.
+  embedding_dim: 10
+  num_heads: 5
+  num_layers: 1
+  dim_feedforward: 10 # Dimensions of feedforward layer inside transformer.
+  dim_fc: 10 # Dimensions of fully-connected layer after transformer.

@@ -1,10 +1,10 @@
-name: Inception_sweep
-project: psim
-program: src/models/CNN_train.py
+name: inception_sweep
+project: psim_v01
+program: src/models/LN_train.py
 method: bayes
 metric:
   goal: maximize
-  name: test_acc
+  name: test_f1
 parameters:
   batch_size:
     values: [16,32,64]
@@ -12,25 +12,25 @@ parameters:
     values: ["adamw"]
   optimizer.lr:
     values: [0.01,0.005,0.001]
-  model.fc_dropout_rate:
-    values: [0.25,0.5,0.75]
-  model.fc_num:
+  model.params.fc_dropout_rate:
+    values: [0.25]
+  model.params.fc_num:
     values: [1,2,3]
-  model.num_inception_layers:
+  model.params.num_inception_layers:
     values: [1,2,3,5,10]
-  model.out_channels: 
+  model.params.out_channels: 
     values: [8,16,32]
-  model.kernel_size_b1: 
+  model.params.kernel_size_b1: 
     values: [3,5,7,9,11,21,31,61,121,241]
-  model.kernel_size_b2: 
+  model.params.kernel_size_b2: 
     values: [3,5,7,9,11,21,31,61,121,241]
-  model.keep_b3: 
+  model.params.keep_b3: 
     values: [True,False]
-  model.keep_b4: 
+  model.params.keep_b4: 
     values: [True,False]
-  model.batchnorm:
+  model.params.batchnorm:
     values: [True]
-  model.activation_fn:
+  model.params.activation_fn:
     values: ["ReLU","ELU"]
 command:
   - ${env}

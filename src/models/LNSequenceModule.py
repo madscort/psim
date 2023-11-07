@@ -1,109 +1,78 @@
 import torch
 import wandb
-import numpy as np
 import torch.nn as nn
 import pytorch_lightning as pl
-import CNN_collection as CNN
-import LSTM_collection as LSTM
-import Transformer_collection as Transformers
-
+from hydra.utils import instantiate
+from torch.optim.lr_scheduler import OneCycleLR, LambdaLR
 from torchmetrics.functional import accuracy
 from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score
-
-
-MODEL_REGISTRY = {
-    'BasicCNN': CNN.BasicCNN,
-    'BasicInception': CNN.BasicInception,
-    'BasicLSTM': LSTM.BasicLSTM,
-    'BasicTransformer': Transformers.BasicTransformer
-}
+from omegaconf import DictConfig
 
 class SequenceModule(pl.LightningModule):
     def __init__(self,
-            model,
-            lr=0.001,
-            optimizer='adam',
-            activation_fn='ReLU',
-            alt_dropout_rate=0.1,
-            fc_dropout_rate=0.5,
-            batchnorm=False,
-            fc_num=2,
-            fold_num: int = None,
-            kernel_size: tuple=(3,3,3),
-            num_inception_layers: int = 1,
-            out_channels: int = 16,
-            kernel_size_b1: int = 3,
-            kernel_size_b2: int = 5,
-            keep_b3: bool = True,
-            keep_b4: bool = True,
-            pad_pack: bool = False,
-            model_input_size: int = 25000,
-            hidden_size_lstm: int = 64,
-            num_layers_lstm: int = 1,
-            embedding_dim: int = None,
-            vocab_size: int = 5):
+                 model_config: DictConfig,
+                 lr: float,
+                 batch_size: int,
+                 warmup: bool,
+                 steps_per_epoch: int,
+                 optimizer: str,
+                 class_weights: torch.Tensor,
+                 vocab_map: dict,
+                 fold_num: int = None):
         super(SequenceModule, self).__init__()
+
         self.fold_num = fold_num
-        self.model = MODEL_REGISTRY[model](activation_fn=activation_fn,
-            alt_dropout_rate=alt_dropout_rate,
-            fc_dropout_rate=fc_dropout_rate,
-            batchnorm=batchnorm,
-            fc_num=fc_num,
-            kernel_size=kernel_size,
-            num_inception_layers=num_inception_layers,
-            out_channels=out_channels,
-            kernel_size_b1=kernel_size_b1,
-            kernel_size_b2=kernel_size_b2,
-            keep_b3=keep_b3,
-            keep_b4=keep_b4,
-            pad_pack=pad_pack,
-            input_size=model_input_size,
-            hidden_size_lstm=hidden_size_lstm,
-            num_layers_lstm=num_layers_lstm,
-            embedding_dim=embedding_dim,
-            vocab_size=vocab_size)
-        self.criterion = nn.CrossEntropyLoss()
+        self.model = instantiate(model_config.params)
+        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         self.lr = lr
+        self.batch_size = batch_size
+        self.warmup = warmup
+        self.steps_per_epoch = steps_per_epoch
         self.optimizer = optimizer
         self.test_y_hat = []
         self.test_y = []
+        self.vocab_map = vocab_map
+        self.save_hyperparameters(logger=False)
 
     def forward(self, x):
         return self.model(x)
-
+    
     def training_step(self, batch, batch_idx):
         _, loss, acc = self._get_preds_loss_accuracy(batch)
         if self.fold_num is not None:
-            wandb.log({f"train_CV{self.fold_num}_loss" : loss,
-                       f"train_CV{self.fold_num}_acc" : acc})
-            self.log('train_loss', loss, logger=False, batch_size=batch[1].shape[0])
-            self.log('train_acc', acc, prog_bar=True, logger=False, batch_size=batch[1].shape[0])
+            wandb.log({f"train_CV{self.fold_num}_loss" : loss.item(),
+                    f"train_CV{self.fold_num}_acc" : acc.item()})
+            self.log('train_loss', loss, prog_bar=True, logger=False, batch_size=self.batch_size)
+            self.log('train_acc', acc, prog_bar=True, logger=False, batch_size=self.batch_size)
         else:
-            self.log('train_loss', loss, batch_size=batch[1].shape[0])
-            self.log('train_acc', acc, prog_bar=True, batch_size=batch[1].shape[0])
+            self.log('train_loss', loss, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log('train_acc', acc, prog_bar=True, logger=True, batch_size=self.batch_size)
         return loss
-    
+
     def validation_step(self, batch, batch_idx):
         preds, loss, acc = self._get_preds_loss_accuracy(batch)
         if self.fold_num is not None:
-            wandb.log({f"val_CV{self.fold_num}_loss" : loss,
-                       f"val_CV{self.fold_num}_acc" : acc})
-            self.log('val_loss', loss, logger=False, batch_size=batch[1].shape[0])
-            self.log('val_acc', acc, prog_bar=True, logger=False, batch_size=batch[1].shape[0])
+            wandb.log({f"val_CV{self.fold_num}_loss" : loss.item(),
+                    f"val_CV{self.fold_num}_acc" : acc.item()})
+            self.log('val_loss', loss, prog_bar=True, logger=False, batch_size=self.batch_size)
+            self.log('val_acc', acc, prog_bar=True, logger=False, batch_size=self.batch_size)
         else:
-            self.log('val_loss', loss, prog_bar=True, batch_size=batch[1].shape[0])
-            self.log('val_acc', acc, prog_bar=True, batch_size=batch[1].shape[0])
+            self.log('val_loss', loss, prog_bar=True, logger=True, batch_size=self.batch_size)
+            self.log('val_acc', acc, prog_bar=True, logger=True, batch_size=self.batch_size)
         return preds
     
-    def test_step(self, batch, batch_idx):
+    def on_test_epoch_start(self) -> None:
+        super().on_test_epoch_start()
+        self.test_outputs = []
+        return
+    
+    def test_step(self, batch, batch_idx) -> None:
+        super().test_step()
         x, y = batch
-        y_hat = torch.sigmoid(self(x))
-
-        if not hasattr(self, 'test_outputs'):
-            self.test_outputs = []
+        y_hat = self(x)
+        
         self.test_outputs.append({'y_true': y, 'y_hat': y_hat})
-
-        return {'y_true': y, 'y_hat': y_hat}
+        return
 
     def on_test_epoch_end(self):
         # concatenate all y_true and y_hat from outputs of test_step
@@ -111,7 +80,7 @@ class SequenceModule(pl.LightningModule):
         y_hat = torch.cat([x['y_hat'] for x in self.test_outputs], dim=0)
 
         # convert probabilities to predicted labels
-        y_pred_prob = torch.sigmoid(y_hat)
+        y_pred_prob = torch.nn.functional.softmax(y_hat, dim=1)
         y_pred = y_pred_prob.argmax(dim=1)
 
         y_true = y_true.cpu()
@@ -127,16 +96,14 @@ class SequenceModule(pl.LightningModule):
         auc = roc_auc_score(y_true, y_pred_prob_class_1)
         
         # log metrics
-        self.log('test_acc', torch.tensor(acc, dtype=torch.float32))
-        self.log('test_f1', torch.tensor(f1, dtype=torch.float32))
-        self.log('test_precision', torch.tensor(precision, dtype=torch.float32))
-        self.log('test_auc', torch.tensor(auc, dtype=torch.float32))
+        self.log('test_acc', torch.tensor(acc, dtype=torch.float32), batch_size=self.batch_size)
+        self.log('test_f1', torch.tensor(f1, dtype=torch.float32), batch_size=self.batch_size)
+        self.log('test_precision', torch.tensor(precision, dtype=torch.float32), batch_size=self.batch_size)
+        self.log('test_auc', torch.tensor(auc, dtype=torch.float32), batch_size=self.batch_size)
         
         # log ROC curve in wandb
         y_true_np = y_true.numpy()
         y_hat_np = y_pred_prob.numpy()
-
-        print("Shapes:", y_true.shape, y_hat.shape, y_true_np.shape, y_hat_np.shape)
 
         self.logger.experiment.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
 
@@ -144,7 +111,7 @@ class SequenceModule(pl.LightningModule):
                     data=[[acc, f1, precision, auc]])})
 
         del self.test_outputs
-        return {'y_true': y_true, 'y_hat': y_hat}
+        return
 
     def configure_optimizers(self):
         if self.optimizer == 'adam':
@@ -158,7 +125,19 @@ class SequenceModule(pl.LightningModule):
         else:
             raise ValueError('Optimizer not supported')
         
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 0.95 ** epoch)
+        if self.warmup:
+            scheduler = OneCycleLR(
+                optimizer,
+                max_lr=self.lr, # The peak LR to achieve after warmup
+                epochs=self.trainer.max_epochs, # Total number of epochs
+                steps_per_epoch=self.steps_per_epoch, # Number of batches in one epoch
+                pct_start=0.1, # The percentage of the cycle spent increasing the LR
+                anneal_strategy='cos', # How to anneal the LR (options: 'cos' or 'linear')
+                final_div_factor=1e4, # The factor to reduce the LR at the end
+            )
+        else:
+            scheduler = LambdaLR(optimizer, lambda epoch: 0.95 ** epoch)
+
         monitor = 'val_loss'
         return {'optimizer': optimizer, 'lr_scheduler': scheduler, 'monitor': monitor}
     
@@ -166,7 +145,16 @@ class SequenceModule(pl.LightningModule):
         '''convenience function since train/valid/test steps are similar'''
         x, y = batch
         logits = self(x)
-        preds = torch.sigmoid(logits).argmax(dim=1)
+        preds = logits.argmax(dim=1)
         loss = self.criterion(logits, y)
         acc = accuracy(preds, y, 'binary')
         return preds, loss, acc
+
+    def on_save_checkpoint(self, checkpoint):
+        if self.vocab_map != None:
+            checkpoint['vocabulary_map'] = self.vocab_map
+        else:
+            checkpoint['vocabulary_map'] = {'no_vocab_map': 0}
+    
+    def on_load_checkpoint(self, checkpoint):
+        self.vocab_map = checkpoint['vocabulary_map']

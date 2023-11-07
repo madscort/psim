@@ -4,32 +4,27 @@ from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
 class BasicLSTM(nn.Module):
     def __init__(self,
-                alt_dropout_rate: float=0.1,
-                fc_dropout_rate: float=0.5,
-                activation_fn: str='ReLU',
-                batchnorm: bool=True,
-                fc_num: int=1,
-                kernel_size: tuple=(3,3,3),
-                num_inception_layers: int = 5,
-                out_channels: int = 16,
-                kernel_size_b1: int = 3,
-                kernel_size_b2: int = 5,
-                keep_b3 = True,
-                keep_b4 = True,
-                input_size=25000,
-                hidden_size_lstm=64,
-                num_layers_lstm=1,
-                num_classes=1,
-                pad_pack: bool=False,
-                embedding_dim=None,
-                vocab_size=5):
+                fc_dropout_rate: float,
+                activation_fn: str,
+                fc_num: int,
+                input_size: int,
+                hidden_size_lstm: int,
+                num_layers_lstm: int,
+                num_classes: int,
+                pad_pack: bool,
+                embedding_dim: int,
+                vocab_size: int,
+                dim_shift: bool):
         super(BasicLSTM, self).__init__()
+        self.dim_shift = dim_shift
         self.pad_pack = pad_pack
         self.fc_num = fc_num
         self.embedding_dim = embedding_dim
-        self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        if self.embedding_dim is not None:
+        if self.embedding_dim != 0:
+            self.embedding = nn.Embedding(vocab_size, embedding_dim)
             input_size = embedding_dim
+        self.activation_fn = getattr(nn, activation_fn)()
+
         self.lstm = nn.LSTM(input_size=input_size, 
                             hidden_size=hidden_size_lstm, 
                             num_layers=num_layers_lstm, 
@@ -45,16 +40,21 @@ class BasicLSTM(nn.Module):
         if self.pad_pack:
             lengths = x["lengths"]
             x = x["seqs"]
-            if self.embedding_dim is not None:
+            if self.dim_shift:
+                x = x.permute(0, 2, 1)
+            if self.embedding_dim != 0:
                 x = self.embedding(x)
             x = pack_padded_sequence(x, lengths, batch_first=True)
             x, _ = self.lstm(x)
             x, _ = pad_packed_sequence(x, batch_first=True)
         else:
+            if self.dim_shift:
+                x = x.permute(0, 2, 1)
             x, _ = self.lstm(x)
         x = torch.mean(x, dim=1)
         if self.fc_num == 2:
             x = self.fc_pre(x)
+            x = self.activation_fn(x)
             x = self.dropout(x)
         x = self.fc(x)
         x = self.dropout(x)
