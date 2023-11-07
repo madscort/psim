@@ -3,7 +3,7 @@ import wandb
 import torch.nn as nn
 import pytorch_lightning as pl
 from hydra.utils import instantiate
-from torch.optim.lr_scheduler import OneCycleLR
+from torch.optim.lr_scheduler import OneCycleLR, LambdaLR
 from torchmetrics.functional import accuracy
 from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score
 from omegaconf import DictConfig
@@ -13,6 +13,7 @@ class SequenceModule(pl.LightningModule):
                  model_config: DictConfig,
                  lr: float,
                  batch_size: int,
+                 warmup: bool,
                  steps_per_epoch: int,
                  optimizer: str,
                  class_weights: torch.Tensor,
@@ -25,6 +26,7 @@ class SequenceModule(pl.LightningModule):
         self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         self.lr = lr
         self.batch_size = batch_size
+        self.warmup = warmup
         self.steps_per_epoch = steps_per_epoch
         self.optimizer = optimizer
         self.test_y_hat = []
@@ -123,16 +125,18 @@ class SequenceModule(pl.LightningModule):
         else:
             raise ValueError('Optimizer not supported')
         
-        # Scheduler with warmup
-        scheduler = OneCycleLR(
-            optimizer,
-            max_lr=self.lr, # The peak LR to achieve after warmup
-            epochs=self.trainer.max_epochs, # Total number of epochs
-            steps_per_epoch=self.steps_per_epoch, # Number of batches in one epoch
-            pct_start=0.1, # The percentage of the cycle spent increasing the LR
-            anneal_strategy='cos', # How to anneal the LR (options: 'cos' or 'linear')
-            final_div_factor=1e4, # The factor to reduce the LR at the end
-        )
+        if self.warmup:
+            scheduler = OneCycleLR(
+                optimizer,
+                max_lr=self.lr, # The peak LR to achieve after warmup
+                epochs=self.trainer.max_epochs, # Total number of epochs
+                steps_per_epoch=self.steps_per_epoch, # Number of batches in one epoch
+                pct_start=0.1, # The percentage of the cycle spent increasing the LR
+                anneal_strategy='cos', # How to anneal the LR (options: 'cos' or 'linear')
+                final_div_factor=1e4, # The factor to reduce the LR at the end
+            )
+        else:
+            scheduler = LambdaLR(optimizer, lambda epoch: 0.95 ** epoch)
 
         monitor = 'val_loss'
         return {'optimizer': optimizer, 'lr_scheduler': scheduler, 'monitor': monitor}

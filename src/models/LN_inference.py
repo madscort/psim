@@ -17,6 +17,9 @@ def main():
     
     seed_everything(1)
 
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+
     # Get all info:
     sampletable = Path("data/processed/01_combined_databases/sample_table.tsv") # contains sample_id, type and label
     coordtable = Path("data/processed/01_combined_databases/satellite_coordinates.tsv") # contains sample_id, ref_seq, coord_start, coord_end
@@ -193,8 +196,11 @@ def main():
     #     seqs.append(seq)
 
     model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/transformer/aq36lwle.ckpt").absolute(),
-                                                map_location=torch.device('cpu'))
+                                                map_location=device)
+    model.to(device)
+
     model.eval()
+    
     if transformer:
         vocab_map = model.vocab_map
     seq_preds = []

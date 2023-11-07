@@ -47,6 +47,7 @@ def main(cfg: DictConfig):
                            batch_size=cfg.batch_size,
                            steps_per_epoch=steps_per_epoch,
                            optimizer=cfg.optimizer.name,
+                           warmup=cfg.optimizer.warmup,
                            class_weights=class_weights,
                            vocab_map=vocab_map)
 
