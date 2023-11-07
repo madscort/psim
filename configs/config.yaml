@@ -2,16 +2,17 @@ project: "psim"
 accelerator: "gpu"
 devices: -1
 dataset: "dataset_v01"
-batch_size: 16
+batch_size: 64
 num_workers: 4
-epochs: 20
-run_group: transformer
-run_name: config_test
+epochs: 30
+run_group: transformer_sweep_01
+run_name: transformer
 
 defaults:
-  - model: transformer_profile
+  - model: inception
   - _self_
 
 optimizer:
   name: "adamw"
-  lr: 0.005
+  lr: 0.001
+  warmup: False
