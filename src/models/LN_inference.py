@@ -1,5 +1,6 @@
 from pathlib import Path
 from pytorch_lightning import seed_everything
+from tqdm import tqdm
 import torch
 import sys
 import pandas as pd
@@ -20,10 +21,10 @@ def main():
     sampletable = Path("data/processed/01_combined_databases/sample_table.tsv") # contains sample_id, type and label
     coordtable = Path("data/processed/01_combined_databases/satellite_coordinates.tsv") # contains sample_id, ref_seq, coord_start, coord_end
     ps_sample = collections.namedtuple("ps_sample", ["sample_id", "type", "ref_seq", "coord_start", "coord_end"])
-    ref_seqs = Path("/work3/s120356/databases/reference_sequences/data/processed/01_combined_databases/reference_sequences/")
+    ref_seqs = Path("data/processed/01_combined_databases/reference_sequences/")
     ps_taxonomy = Path("data/processed/01_combined_databases/ps_tax_info.tsv")
     output_file = Path("data/visualization/sliding_window/predictions_version01_transformer.tsv")
-    stride = 5000
+    stride = 50000
     chunk_size = 25000
     transformer = True
 
@@ -87,13 +88,11 @@ def main():
     test = pd.read_csv(sample_table_test, sep="\t", header=0, names=['id', 'type', 'label'])
     # Get sampleids from val for label == 1:
 
-    sampleids = test[test['label'] == 1]['id'].tolist()
+    sampleids = test[test['label'] == 1]['id'].tolist()[:50]
     test_ref_seqs = []
     print(len(sampleids))
     overlaps = 0
     for n, id in enumerate(sampleids):
-        if n == 5:
-            break
         if n % 10 == 0:
             print(n)
         ref_seq = samples[id].ref_seq
@@ -193,7 +192,7 @@ def main():
     #         seq += line.strip()
     #     seqs.append(seq)
 
-    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("psim/aq36lwle/checkpoints/epoch=99-step=13400.ckpt").absolute(),
+    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/transformer/aq36lwle.ckpt").absolute(),
                                                 map_location=torch.device('cpu'))
     model.eval()
     if transformer:
@@ -202,6 +201,7 @@ def main():
     all_preds = []
     all_preds_prob = []
     for n, seq in enumerate(seqs):
+        print("Sequence: ", n)
         if n % 10 == 0:
             print(n)
         # Create sliding window of size 25000 with adjustable stride:
@@ -214,9 +214,9 @@ def main():
         predictions = []
         probabilities = []
         
-        for chunk in chunks:
+        for chunk in tqdm(chunks):
             if transformer:
-                model_string = get_one_string(chunk, Path("data/processed/10_datasets/dataset_v01/strings/pfama/hmm/hmms.hmm"))
+                model_string = get_one_string(chunk, Path("data/processed/10_datasets/attachings/hmms/hmms.hmm"))
                 encoded_string = torch.tensor(encode_sequence(model_string, vocab_map))
                 sequence = {"seqs": encoded_string.unsqueeze(0)}
             else:

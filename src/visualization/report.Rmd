@@ -13,6 +13,9 @@ library(tibble)
 library(readr)
 library(stringr)
 library(ggplot2)
+library(forcats)
+library(patchwork)
+library(scales)
 library(tidyverse)
 ```
 
@@ -370,9 +373,6 @@ p1 + p2 + plot_spacer() + plot_spacer() + p3 + plot_layout(ncol = 3,
 
 
 ```{r}
-library(forcats)
-library(patchwork)
-library(scales)
 
 dist <- read_delim("./../../data/visualization/mash_map/mash_dist_original.tsv", col_names = c("var1","var2","distance", "contig_type"))
 
@@ -589,16 +589,19 @@ prediction %>%
   facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
 ```
 
+
+## Transformer model:
+
 ```{r}
 prediction <- 
-  read_delim("./../../data/visualization/sliding_window/predictions_original.tsv",
+  read_delim("./../../data/visualization/sliding_window/predictions_version01_transformer.tsv",
              col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
   mutate("truth" = factor(truth)) %>% 
   mutate("prediction" = factor(prediction)) %>% 
   mutate("tax" = factor(tax))
 
-p1 <- prediction %>% 
-  filter(tax == "Kocuria palustris") %>% 
+prediction %>% 
+  filter(tax == "Escherichia coli") %>% 
   ggplot(aes(location, refid,
              fill = interaction(truth,prediction))) +
   geom_tile() +
@@ -607,30 +610,33 @@ p1 <- prediction %>%
                                "0.1" = "tomato2",
                                "1.1" = "olivedrab2")) +
   theme_minimal() +
-  theme(legend.position = "none",
+  theme(legend.position = "bottom",
         legend.title =  element_blank()) +
   facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
-
-prediction <- 
-  read_delim("./../../data/visualization/sliding_window/predictions_version01.tsv",
-             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
-  mutate("truth" = factor(truth)) %>% 
-  mutate("prediction" = factor(prediction)) %>% 
-  mutate("tax" = factor(tax))
-
-p2 <- prediction %>% 
-  filter(tax == "Kocuria palustris") %>% 
-  ggplot(aes(location, refid,
-             fill = interaction(truth,prediction))) +
-  geom_tile() +
-  scale_fill_manual(values = c("0.0" = "whitesmoke",
-                               "1.0" = "dodgerblue",
-                               "0.1" = "tomato2",
-                               "1.1" = "olivedrab2")) +
-  theme_minimal() +
-  theme(legend.position = "none",
-        legend.title =  element_blank()) +
-  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
-
-p1 / p2
 ```
+
+
+
+
+### Marker genes
+
+
+#### Clustering size distribution:
+
+```{r}
+distr <- 
+  read_delim("./../../data/processed/10_datasets/attachings/size_dist.tsv",
+             col_names = c("protein", "prot_counts"))
+```
+
+```{r}
+View(distr)
+```
+
+
+```{r}
+distr %>% 
+  ggplot(aes(x=prot_counts)) +
+  geom_histogram()
+```
+
