@@ -24,7 +24,7 @@ def main():
     sampletable = Path("data/processed/01_combined_databases/sample_table.tsv") # contains sample_id, type and label
     coordtable = Path("data/processed/01_combined_databases/satellite_coordinates.tsv") # contains sample_id, ref_seq, coord_start, coord_end
     ps_sample = collections.namedtuple("ps_sample", ["sample_id", "type", "ref_seq", "coord_start", "coord_end"])
-    ref_seqs = Path("/work3/s120356/databases/reference_sequences/data/processed/01_combined_databases/reference_sequences/")
+    ref_seqs = Path("data/processed/01_combined_databases/reference_sequences/")
     ps_taxonomy = Path("data/processed/01_combined_databases/ps_tax_info.tsv")
     output_file = Path("data/visualization/sliding_window/predictions_version01_transformer.tsv")
     stride = 50000
@@ -195,10 +195,12 @@ def main():
     #         seq += line.strip()
     #     seqs.append(seq)
 
-    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("psim/aq36lwle/checkpoints/epoch=99-step=13400.ckpt").absolute(),
+    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/transformer/aq36lwle.ckpt").absolute(),
                                                 map_location=device)
     model.to(device)
+
     model.eval()
+    
     if transformer:
         vocab_map = model.vocab_map
     seq_preds = []
@@ -220,8 +222,8 @@ def main():
         
         for chunk in tqdm(chunks):
             if transformer:
-                model_string = get_one_string(chunk, Path("data/processed/10_datasets/dataset_v01/strings/pfama/hmm/hmms.hmm"))
-                encoded_string = torch.tensor(encode_sequence(model_string, vocab_map)).to(device)
+                model_string = get_one_string(chunk, Path("data/processed/10_datasets/attachings/hmms/hmms.hmm"))
+                encoded_string = torch.tensor(encode_sequence(model_string, vocab_map))
                 sequence = {"seqs": encoded_string.unsqueeze(0)}
             else:
                 sequence = torch.tensor([int(base.translate(translate)) for base in chunk], dtype=torch.float)

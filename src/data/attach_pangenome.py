@@ -219,8 +219,8 @@ def get_one_string(sequence, hmm_db):
                 protein_string[protein.protein] = "no_hit"
                 print(f">{protein.protein}", file=f_out)
                 print(protein.seq, file=f_out)
-        hmmer_scan = HMMER(hmm=hmm_db, db=tmp_work / "proteins.faa", out=tmp_work / "hmmer_scan")
-        hmmer_scan.search()
+        hmmer_scan = HMMER(hmm=hmm_db, db=tmp_work / "proteins.faa", out=tmp_work / "hmmer_scan", scan=True)
+        hmmer_scan.scan()
         hits = hmmer_scan.get_best_hits()
         for pr in protein_string:
             if pr in hits:

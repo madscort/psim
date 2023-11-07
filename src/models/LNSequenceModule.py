@@ -151,7 +151,7 @@ class SequenceModule(pl.LightningModule):
         return preds, loss, acc
 
     def on_save_checkpoint(self, checkpoint):
-        if self.vocab_map != None:
+        if self.vocab_map is not None:
             checkpoint['vocabulary_map'] = self.vocab_map
         else:
             checkpoint['vocabulary_map'] = {'no_vocab_map': 0}
