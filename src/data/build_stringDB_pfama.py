@@ -20,27 +20,21 @@ from tempfile import TemporaryDirectory
 # - folder with individual nucleotide sequences
 # Outputs
 # - set of hmms in single files
-# - annotations of each hmm
-# - presence/absence matrix of each hmm in each sample
+# - pickled dataset file with strings of hmm accession matches
 
-# Clustering steps:
+## 1. Clustering steps:
 # 1. Take all nucletotide sequences
 # 2. Predict genes
 # 3. Cluster with mmseqs2
 
-# Original version - only Pfam-A
-# 1. Search for hmm profiles for representative in each cluster
-# 2. 
+## 2. Profile creation - base version - only Pfam-A
+# 1. Search pfam-a for hmm profiles for representative in each cluster
+# 2. Create collected database with hmms
 
-# Options:
-# 
-# Pfam-A, TIGRFAM, KEGG Orthology and COG
-
-
-# Satellite annotation steps:
-# 1. Take all sequences
-# 2. Annotate using mmseqs2
-# 3. Create presence absence matrix
+## 3. Predictions - base version - hmmsearch/hmmscan:
+# 1. Translate dataset and search against hmms
+# 2. Create ordered accessions strings for complete dataset
+# 3. Pickle and save as .pt
 
 
 Protein = namedtuple("Protein", ["genome", "protein", "seq"])
@@ -245,52 +239,6 @@ def get_hmms(accessions: set = None, hmm_db: Path = None, output_path: Path = No
             raise Exception(f"Error running hmmpress: {subprocess_return}")
         return output_path / "hmms.hmm"
 
-def attach(dataset) -> Path:
-    splits = ["train","val","test"]
-    data_splits = {
-        split: load_split_data(dataset, split) for split in splits
-    }
-
-    for split in data_splits:
-        print(f"Split: {split}")
-        sequences = data_splits[split]['sequences']
-        protein_strings = []
-        len_strings = []
-        with TemporaryDirectory() as tmp_work:
-            tmp_work = Path(tmp_work)
-            with open(tmp_work / "proteins.faa", "w") as f_out:
-                print("Translating sequences...")
-                for sequence in tqdm(sequences):
-                    protein_string = {}
-                    proteins = gene_prediction(sequence)
-                    for protein in proteins:
-                        protein_string[protein.protein] = "no_hit"
-                        print(f">{protein.protein}", file=f_out)
-                        print(protein.seq, file=f_out)
-                    protein_strings.append(protein_string)
-                    len_strings.append(len(protein_string))
-            hmmer_scan = HMMER(hmm=result_db, db=tmp_work / "proteins.faa", out=tmp_work / "hmmer_scan")
-            hmmer_scan.search()
-            hits = hmmer_scan.get_best_hits()
-        for contig in protein_strings:
-            for pr in contig:
-                if pr in hits:
-                    contig[pr] = hits[pr].target_accession
-
-        # Get list of lists of accessions:
-        accession_string = []
-        for contig in protein_strings:
-            accession_string.append([contig[pr] for pr in contig])
-        for n, seq in enumerate(accession_string):
-            assert len(seq) == len_strings[n]
-        data_splits[split]['sequences'] = accession_string
-
-    # Save data
-    torch.save(data_splits, output_path / "pfam.pt")
-
-    return output_path / "pfam.pt"
-
-
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     logging.basicConfig(level=logging.INFO, format=log_fmt)
@@ -306,23 +254,14 @@ if __name__ == '__main__':
     output.mkdir(parents=True, exist_ok=True)
     output_path.mkdir(parents=True, exist_ok=True)
     
-    # 1
     COLLECT_PROTEINS = False
-    # 2
     CLUSTER = False
-    # 3
     SAVE_REPRESENTATIVES = False
-    # 4
     FIND_HMMS = False
-    # 5
     FETCH_HMMS = False
-    # 6
     SCAN_REPRESENTATIVES = False
-    # 7
     TRANSLATE_DATASET = False
-    # 8
     SCAN_DATASET = False
-    # 9
     ATTACH_TO_DATASET = True
 
     if COLLECT_PROTEINS:

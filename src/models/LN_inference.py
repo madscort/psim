@@ -8,7 +8,7 @@ from torch.nn.functional import one_hot
 import collections
 from src.models.LNSequenceModule import SequenceModule
 from src.data.LN_data_module import encode_sequence
-from src.data.attach_pangenome import get_one_string
+from src.data.build_stringDB_pfama import get_one_string
 from torch.nn.functional import softmax
 translate = str.maketrans("ACGTURYKMSWBDHVN", "0123444444444444")
 

@@ -1,6 +1,6 @@
 import torch
 from pathlib import Path
-from src.data.attach_pangenome import get_one_string, get_hmms
+from src.data.build_stringDB_pfama import get_one_string, get_hmms
 from src.models.LNSequenceModule import SequenceModule
 from src.data.LN_data_module import encode_sequence
 from torch.nn.functional import softmax
