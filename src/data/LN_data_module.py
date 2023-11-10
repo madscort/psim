@@ -137,7 +137,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
     def setup(self, stage: str = None):
         
         if self.string_model:
-            self.data_splits = torch.load(self.dataset / "strings" / "novo" / "dataset.pt")
+            self.data_splits = torch.load(self.dataset / "strings" / "mmDB" / "dataset.pt")
             vocab = set()
             for split in ['train', 'val', 'test']:
                 self.max_seq_length = max(self.max_seq_length, max(len(seq) for seq in self.data_splits[split]['sequences']))

@@ -40,17 +40,22 @@ TATGTGCTAATTCTTCAAAGAGAATTCCTGCCTTTTCTCTATCTGATAAGCCACGCTTTA
 TTAAAATTAAATCTCCTAACCATACCCCATCCAAATTATCTGGAAGCACATCAGCCTCTC"""
 
 vocab_map = torch.load(Path("data/processed/10_datasets/dataset_v01/strings/pfama/vocab_map.pt"))
-data_splits = torch.load(Path("data/processed/10_datasets/dataset_v01/strings/pfama/dataset.pt"))
-model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("psim/wahn6i9x/checkpoints/epoch=8-step=4806.ckpt").absolute(),
-                                                map_location=torch.device('cpu'))
-model.eval()
+data_splits = torch.load(Path("data/processed/10_datasets/dataset_v01/strings/mmDB/dataset.pt"))
+# model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("psim/wahn6i9x/checkpoints/epoch=8-step=4806.ckpt").absolute(),
+#                                                 map_location=torch.device('cpu'))
+# model.eval()
 
 for split in ['test']:
     for n in range(len(data_splits['test']['labels'])):
+        if n == 100:
+            break
         input_string = data_splits[split]['sequences'][n]
-        encoded_string = torch.tensor(encode_sequence(input_string, vocab_map))
-        print(encoded_string)
-        sys.exit()
+        label = data_splits[split]['labels'][n]
+        if int(label) == 0:
+            print(input_string, label)
+        # encoded_string = torch.tensor(encode_sequence(input_string, vocab_map))
+        # print(encoded_string)
+        # sys.exit()
         #prediction = model({"seqs": encoded_string.unsqueeze(0)})
         #print(prediction.argmax(dim=1).tolist()[0])
 
