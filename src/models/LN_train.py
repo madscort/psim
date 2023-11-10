@@ -7,7 +7,7 @@ from omegaconf.omegaconf import OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning import seed_everything
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks import LearningRateMonitor, StochasticWeightAveraging
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 from src.data.LN_data_module import FixedLengthSequenceModule
@@ -36,7 +36,6 @@ def main(cfg: DictConfig):
     class_weights = data_module.class_weights
     steps_per_epoch = data_module.steps_per_epoch
     vocab_map = data_module.vocab_map
-
     wandb_logger = WandbLogger(project=cfg.project,
                                config=OmegaConf.to_container(cfg,
                                                              resolve=True),
@@ -59,10 +58,12 @@ def main(cfg: DictConfig):
                                             
     trainer = Trainer(accelerator=cfg.accelerator,
                       devices=cfg.devices,
+                      gradient_clip_val=0.5,
                       max_epochs=cfg.epochs,
                       logger=wandb_logger,
                       callbacks=[LearningRateMonitor(logging_interval='step'),
-                                 early_stop_callback])
+                                 early_stop_callback,
+                                 StochasticWeightAveraging(swa_lrs=1e-2)])
     
     trainer.fit(model, datamodule=data_module)
 

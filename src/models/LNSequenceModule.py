@@ -126,6 +126,8 @@ class SequenceModule(pl.LightningModule):
             raise ValueError('Optimizer not supported')
         
         if self.warmup:
+            print(self.trainer.max_epochs)
+            print(self.steps_per_epoch)
             scheduler = OneCycleLR(
                 optimizer,
                 max_lr=self.lr, # The peak LR to achieve after warmup
@@ -139,7 +141,14 @@ class SequenceModule(pl.LightningModule):
             scheduler = LambdaLR(optimizer, lambda epoch: 0.95 ** epoch)
 
         monitor = 'val_loss'
-        return {'optimizer': optimizer, 'lr_scheduler': scheduler, 'monitor': monitor}
+        return {
+                    'optimizer': optimizer,
+                    'lr_scheduler': {
+                        'scheduler': scheduler,
+                        'interval': 'step',
+                    },
+                    'monitor': monitor,
+                }
     
     def _get_preds_loss_accuracy(self, batch):
         '''convenience function since train/valid/test steps are similar'''

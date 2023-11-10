@@ -142,20 +142,23 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
             for split in ['train', 'val', 'test']:
                 self.max_seq_length = max(self.max_seq_length, max(len(seq) for seq in self.data_splits[split]['sequences']))
                 vocab.update(x for seq in self.data_splits[split]['sequences'] for x in seq)
-            self.vocab_map = {name: i for i, name in enumerate(vocab)}
+            self.vocab_map = {name: i+1 for i, name in enumerate(sorted(vocab))}
+            self.vocab_map['<PAD>'] = 0
             self.vocab_size = len(self.vocab_map)
         else:
             self.data_splits = {
                 split: self.load_split_data(split) for split in ['train', 'val', 'test']
             }
         
-        num_class_1 = self.data_splits['test']['labels'].sum()
-        num_class_0 = len(self.data_splits['test']['labels']) - num_class_1
+        labels = self.data_splits['train']['labels']
+        num_class_1 = labels.sum()
+        num_class_0 = len(labels) - num_class_1
         class_counts = [num_class_0, num_class_1]  # replace with your actual class counts
-        total = sum(class_counts)
-        class_weights = [total / class_count for class_count in class_counts]
-        self.class_weights = torch.tensor(class_weights, dtype=torch.float)
-        self.steps_per_epoch = int(total) // self.batch_size
+        class_weights = [sum(class_counts) / class_count for class_count in class_counts]
+        weight_sum = sum(class_weights)
+        normalized_class_weights = [w / weight_sum for w in class_weights]
+        self.class_weights = torch.tensor(normalized_class_weights, dtype=torch.float)
+        self.steps_per_epoch = (len(self.data_splits['train']['sequences']) + self.batch_size - 1) // self.batch_size
     
     def load_split_data(self, split):
         df = pd.read_csv(self.dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"])
