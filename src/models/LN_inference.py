@@ -1,15 +1,23 @@
 from pathlib import Path
 from pytorch_lightning import seed_everything
 from tqdm import tqdm
+from multiprocessing import Pool
+from typing import List, Tuple
+from tempfile import TemporaryDirectory
 import torch
+import logging
 import sys
 import pandas as pd
 from torch.nn.functional import one_hot
+from Bio import SeqIO
+import pyrodigal_gv
 import collections
 from src.models.LNSequenceModule import SequenceModule
 from src.data.LN_data_module import encode_sequence
 from src.data.build_stringDB_pfama import get_one_string
 from torch.nn.functional import softmax
+from src.data.build_stringDB_novo import HMMER
+
 translate = str.maketrans("ACGTURYKMSWBDHVN", "0123444444444444")
 
 
@@ -17,17 +25,27 @@ def main():
     
     seed_everything(1)
 
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
+    device = torch.device("cpu")
 
     # Get all info:
     sampletable = Path("data/processed/01_combined_databases/sample_table.tsv") # contains sample_id, type and label
+    sample_table_test = Path("data/processed/10_datasets/dataset_v01/test.tsv") # used to get sequences
     coordtable = Path("data/processed/01_combined_databases/satellite_coordinates.tsv") # contains sample_id, ref_seq, coord_start, coord_end
     ps_sample = collections.namedtuple("ps_sample", ["sample_id", "type", "ref_seq", "coord_start", "coord_end"])
+
     ref_seqs = Path("data/processed/01_combined_databases/reference_sequences/")
     ps_taxonomy = Path("data/processed/01_combined_databases/ps_tax_info.tsv")
-    output_file = Path("data/visualization/sliding_window/predictions_version01_transformer.tsv")
-    stride = 50000
+    output_root = Path("data/visualization/sliding_window/version01_protein_version")
+    output_root.mkdir(parents=True, exist_ok=True)
+    output_file = output_root / "predictions.tsv"
+    test = pd.read_csv(sample_table_test, sep="\t", header=0, names=['id', 'type', 'label'])
+    sampleids = test[test['label'] == 1]['id'].tolist()[:50]
+    
+    model_database = Path("data/processed/10_datasets/dataset_v01/strings/novo/hmms/hmms.hmm")
+    model_database_out = output_root / "db_out"
+    model_database_out.mkdir(parents=True, exist_ok=True)
+
+    stride = 25000
     chunk_size = 25000
     transformer = True
 
@@ -68,189 +86,212 @@ def main():
                 end = int(line[3])
                 ref_dict[line[1]].append((start,end))
 
-
-    # Get all host sampled seqs instead:
-
-    # with open(Path("data/processed/06_sampled_host_seqs/host_sampled_seqs.fna"), "r") as f:
-    #     # Append all sequences to list:
-    #     f.readline()
-    #     seq = ""
-    #     for line in f:
-    #         if line.startswith(">"):
-    #             seqs.append(seq)
-    #             seq = ""
-    #             continue
-    #         seq += line.strip()
-    #     seqs.append(seq)
-
-    seqs = []
-    seq_host = []
-    all_truths = []
-
-    sample_table_test = Path("data/processed/10_datasets/dataset_v01/test.tsv")
-    test = pd.read_csv(sample_table_test, sep="\t", header=0, names=['id', 'type', 'label'])
-    # Get sampleids from val for label == 1:
-
-    sampleids = test[test['label'] == 1]['id'].tolist()[:50]
-    test_ref_seqs = []
+    analysed_seqs = set()
+    sequences = []
+    
     print(len(sampleids))
-    overlaps = 0
-    for n, id in enumerate(sampleids):
-        if n % 10 == 0:
-            print(n)
-        ref_seq = samples[id].ref_seq
-        if ref_seq in test_ref_seqs:
-            continue
-        
-        coords = sorted(ref_dict[ref_seq])
-        # Check for overlapping coords in list:
-        overlap = False
-
-        for n, coord_set in enumerate(coords):
-            if n == 0:
+    GET_TRUTH = False
+    if GET_TRUTH:
+        overlaps = 0
+        for n, id in enumerate(sampleids):
+            if n % 10 == 0:
+                print(n)
+            ref_seq = samples[id].ref_seq
+            if ref_seq in analysed_seqs:
                 continue
-            if coord_set[0] < coords[n-1][1]:
+            analysed_seqs.add(ref_seq)
+            coords = sorted(ref_dict[ref_seq])
+            # Check for overlapping coords in list:
+            overlap = False
+
+            for n, coord_set in enumerate(coords):
+                if n == 0:
+                    continue
+                if coord_set[0] < coords[n-1][1]:
+                    print(ref_seq)
+                    print(coords)
+                    print("Overlapping coordinates")
+                    overlap = True
+                    overlaps += 1
+            if overlap:
+                continue
+
+            # Get sequence:
+            seq = ""
+            with open(Path(ref_seqs, ref_seq + ".fna"), "r") as f:
+                f.readline()
+                for line in f:
+                    seq += line.strip()
+            
+            start = 0
+            length = len(seq)
+            true_seq = []
+            for coord_set in coords:
+                coord_start = coord_set[0]
+                coord_end = coord_set[1]
+                before = [0]*(coord_start-start)
+                sat = [1]*(coord_end-coord_start)
+                true_seq += before + sat
+                start = coord_end
+            true_seq += [0]*(length-start)
+
+            true_sum = 0
+            for coord_set in coords:
+                true_sum += coord_set[1]-coord_set[0]
+            if true_sum != sum(true_seq):
+                print(ref_seq)
+                print(true_sum, sum(true_seq))
+                print(coords)
+                sys.exit("Satellite lengths do not match")
+            if len(seq) != len(true_seq):
                 print(ref_seq)
                 print(coords)
-                print("Overlapping coordinates")
-                overlap = True
-                overlaps += 1
-        if overlap:
-            continue
-        test_ref_seqs.append(ref_seq)
-        seq_host.append(tax[id])
-
-        # Get sequence:
-        seq = ""
-        with open(Path(ref_seqs, ref_seq + ".fna"), "r") as f:
-            f.readline()
-            for line in f:
-                seq += line.strip()
-        seqs.append(seq)
+                print(len(seq), len(true_seq))
+                sys.exit("Ref lengths do not match")
+            
+            # Slide over sequence:
+            true_chunks = [true_seq[i:i+chunk_size] for i in range(0, len(true_seq)-chunk_size+1, stride)]
+            
+            # Get predictions:
+            truths = []
+            for true_chunk in true_chunks:
+                if 1 in true_chunk:
+                    truths.append(1)
+                else:
+                    truths.append(0)
+            
+            sequences.append(Sequence(ref_seq, tax[id], seq, truths))
         
-        # Create mock "true" sequence:
-        start = 0
-        length = len(seq)
-        true_seq = []
-        for coord_set in coords:
-            coord_start = coord_set[0]
-            coord_end = coord_set[1]
-            before = [0]*(coord_start-start)
-            sat = [1]*(coord_end-coord_start)
-            true_seq += before + sat
-            start = coord_end
-        true_seq += [0]*(length-start)
+        print("Overlaps: ", overlaps)
+        torch.save(sequences, output_root / "sequences.pt")
+    else:
+        sequences = torch.load(output_root / "sequences.pt")
+    
+    TRANSLATE = False
+    if TRANSLATE:
+        logging.info(f"Start translation")
+        translated_sequences = parallel_gene_prediction(sequences, output_root / "proteins.faa", 4)
+        logging.info(f"Finished translation")
+        torch.save(translated_sequences, output_root / "proteins.pt")
+    else:
+        translated_sequences = torch.load(output_root / "proteins.pt")
 
-        true_sum = 0
-        for coord_set in coords:
-            true_sum += coord_set[1]-coord_set[0]
-        if true_sum != sum(true_seq):
-            print(ref_seq)
-            print(true_sum, sum(true_seq))
-            print(coords)
-            sys.exit("Satellite lengths do not match")
-        if len(seq) != len(true_seq):
-            print(ref_seq)
-            print(coords)
-            print(len(seq), len(true_seq))
-            sys.exit("Ref lengths do not match")
-        
-        # Slide over sequence:
-        true_chunks = [true_seq[i:i+chunk_size] for i in range(0, len(true_seq)-chunk_size+1, stride)]
-        
-        # Get predictions:
-        truths = []
-        for true_chunk in true_chunks:
-            if 1 in true_chunk:
-                truths.append(1)
-            else:
-                truths.append(0)
-        all_truths.append(truths)
-    print("Overlaps: ", overlaps)
-    # Get all validation seqs:
-
-    # with open("data/raw/04_verified_sapis/01_seqs_with_host/all_sapi_w_host.fasta", "r") as f:
-    #     f.readline()
-    #     seq = ""
-    #     for line in f:
-    #         if line.startswith(">"):
-    #             seqs.append(seq)
-    #             seq = ""
-    #             continue
-    #         seq += line.strip().upper()
-    #     seqs.append(seq)
-
-
-    # # Get meta sequences instead:
-    # seqs = []
-    # with open(Path("data/processed/04_metagenomic_contigs/background/combined_min_200000.fa"), "r") as f:
-    #     # Append all sequences to list:
-    #     f.readline()
-    #     seq = ""
-    #     for line in f:
-    #         if line.startswith(">"):
-    #             seqs.append(seq)
-    #             seq = ""
-    #             continue
-    #         seq += line.strip()
-    #     seqs.append(seq)
-
-    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/transformer/aq36lwle.ckpt").absolute(),
+    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/transformer/bhaldn09.ckpt").absolute(),
                                                 map_location=device)
     model.to(device)
-
     model.eval()
     
     if transformer:
         vocab_map = model.vocab_map
+        max_seq_length = 56 # LATER ADD TO: model.max_seq_length
+
+    database_type = "hmm"
+    if database_type == "hmm":
+        mDB = HMMER(hmm=model_database, db=output_root / "proteins.faa", out=output_root / "db_out" , scan=True)
+    
+    CALL_ALL = False
+    if CALL_ALL:
+        mDB.scan()
+    
+    hits = mDB.get_best_hits()
+    
+    print("Vocabulary size: ", len(vocab_map))
+    print("Markers used: ", len(set(x.target_name for x in hits.values())))
+    
     seq_preds = []
     all_preds = []
     all_preds_prob = []
-    for n, seq in enumerate(seqs):
-        print("Sequence: ", n)
+    protein_stride = 1
+    for n, translated_sequence in enumerate(translated_sequences):
         if n % 10 == 0:
             print(n)
-        # Create sliding window of size 25000 with adjustable stride:
+        print(translated_sequence[0].origin)
+        predictions = [0]*len(sequences[n].seq)
+        # Go through sequence in strides of stride size:
+        for i in range(0, len(translated_sequence)-protein_stride+1, protein_stride):
 
-        # with equal chunk sizes: 
-        chunks = [seq[i:i+chunk_size] for i in range(0, len(seq)-chunk_size+1, stride)]
-        # with short chunks in end:
-        # chunks = [seq[i:i+chunk_size] for i in range(0, len(seq), stride)]
-        # Get predictions:
-        predictions = []
-        probabilities = []
-        
-        for chunk in tqdm(chunks):
+            # Eat proteins from index until chunk_size is reached:
+            eating_proteins = True
+            current_index = i
+            length_dna = 0
+            model_string = []
+            protein_string = []
+            while eating_proteins and current_index < len(translated_sequence) and len(model_string) < max_seq_length:
+                if length_dna + len(translated_sequence[current_index].seq) < chunk_size:
+                    length_dna += len(translated_sequence[current_index].seq)
+                    if translated_sequence[current_index].protein in hits:
+                        model_string.append(hits[translated_sequence[current_index].protein].target_name)
+                    else:
+                        model_string.append('no_hit')
+                    protein_string.append((translated_sequence[current_index].start, translated_sequence[current_index].end))
+                    current_index += 1
+                else:
+                    eating_proteins = False
             if transformer:
-                model_string = get_one_string(chunk, Path("data/processed/10_datasets/attachings/hmms/hmms.hmm"))
                 encoded_string = torch.tensor(encode_sequence(model_string, vocab_map))
                 sequence = {"seqs": encoded_string.unsqueeze(0)}
-            else:
-                sequence = torch.tensor([int(base.translate(translate)) for base in chunk], dtype=torch.float)
-                sequence = one_hot(sequence.to(torch.int64), num_classes=5).to(torch.float).permute(1, 0).unsqueeze(0)
             prediction = model(sequence)
-            predictions.append(prediction.argmax(dim=1).tolist()[0])
-            probabilities.append(softmax(prediction, dim=1)[0][1].item())
+            if prediction.argmax(dim=1).tolist()[0] == 1:
+                for x in range(protein_string[0][0], protein_string[-1][1]):
+                    predictions[x] = 1
+            # probabilities.append(softmax(prediction, dim=1)[0][1].item())
+        # Slide over sequence:
+        predict_chunks = [predictions[i:i+chunk_size] for i in range(0, len(predictions)-chunk_size+1, stride)]
+        
+        # Get predictions:
+        predict_bins = []
+        for true_chunk in predict_chunks:
+            if 1 in true_chunk:
+                predict_bins.append(1)
+            else:
+                predict_bins.append(0)
+        all_preds.append(predict_bins)
 
-        if sum(predictions) > 5:
-            seq_preds.append(1)
-            print(1)
-        else:
-            print(0)
-            seq_preds.append(0)
-        # if 1 in predictions:
-        #     seq_preds.append(1)
-        #     print(1)
-        # else:
-        #     print(0)
-        #     seq_preds.append(0)
-        all_preds.append(predictions)
-        all_preds_prob.append(probabilities)
-
-    print((len(seq_preds)-sum(seq_preds))/len(seq_preds))
     with open(output_file, "w") as f:
-        for i, id in enumerate(test_ref_seqs):
+        # Go through each reference sequence
+        for i in range(len(sequences)):
+            # Go through the actual sequence
             for loc in range(len(all_preds[i])):
-                print(loc+1, id, seq_host[i], all_truths[i][loc], all_preds[i][loc], all_preds_prob[i][loc], sep="\t", file=f)
+                print(loc+1,                    # location
+                      sequences[i].id,             # reference sequence id
+                      sequences[i].host,             # reference sequence species
+                      sequences[i].true_seq[loc],       # true value at location
+                      all_preds[i][loc],            # predicted value at location
+                      "0",   # probability of prediction at location, add later: all_preds_prob[i][loc]
+                      sep="\t",
+                      file=f)
+
+Protein = collections.namedtuple("Protein", ["origin", "protein", "position", "start", "end", "seq"])
+Sequence = collections.namedtuple("Sequence", ["id", "host", "seq", "true_seq"])
+Hit = collections.namedtuple('Hit', ['target_name', 'target_accession', 'bitscore'])
+
+def gene_prediction(seq_obj: Sequence) -> List[Protein]:
+    proteins = []
+    orf_finder = pyrodigal_gv.ViralGeneFinder(meta=True, mask=True)
+    for n, pred in enumerate(orf_finder.find_genes(seq_obj.seq)):
+        proteins.append(Protein(origin=seq_obj.id,
+                                protein=f"{seq_obj.id}|{n}",
+                                position=n,
+                                start=pred.begin,
+                                end=pred.end,
+                                seq=pred.translate(include_stop=False)))
+    return proteins
+
+def write_proteins_to_file(sequence: List[Protein], f_out):
+    for protein in sequence:
+        print(f">{protein.protein}", file=f_out)
+        print(protein.seq, file=f_out)
+
+def parallel_gene_prediction(sequences: List[Tuple], output: Path, threads: int) -> List:
+    with Pool(threads) as pool:
+        results = pool.map(gene_prediction, sequences)
+    with open(output, "w") as f_out:
+        for sequence in results:
+            write_proteins_to_file(sequence, f_out)
+    return results
+
+
 if __name__ == "__main__":
+    log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    logging.basicConfig(level=logging.INFO, format=log_fmt)
     main()
