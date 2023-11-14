@@ -17,6 +17,8 @@ from src.data.LN_data_module import encode_sequence
 from src.data.build_stringDB_pfama import get_one_string
 from torch.nn.functional import softmax
 from src.data.build_stringDB_novo import HMMER
+from src.data.build_stringDB_blitsDB import SMMseqs2
+
 
 translate = str.maketrans("ACGTURYKMSWBDHVN", "0123444444444444")
 
@@ -35,19 +37,20 @@ def main():
 
     ref_seqs = Path("data/processed/01_combined_databases/reference_sequences/")
     ps_taxonomy = Path("data/processed/01_combined_databases/ps_tax_info.tsv")
-    output_root = Path("data/visualization/sliding_window/version01_protein_version")
+    output_root = Path("data/visualization/sliding_window/version01_protein_version_blitsDB")
     output_root.mkdir(parents=True, exist_ok=True)
     output_file = output_root / "predictions.tsv"
     test = pd.read_csv(sample_table_test, sep="\t", header=0, names=['id', 'type', 'label'])
     sampleids = test[test['label'] == 1]['id'].tolist()[:50]
     
-    model_database = Path("data/processed/10_datasets/dataset_v01/strings/novo/hmms/hmms.hmm")
+    model_database = Path("data/processed/10_datasets/attachings_blitsDB/mmseqsprofileclusterDB/profileClusterDB")
     model_database_out = output_root / "db_out"
     model_database_out.mkdir(parents=True, exist_ok=True)
 
     stride = 25000
     chunk_size = 25000
     transformer = True
+    num_threads = 4
 
     types = {}
     samples = {}
@@ -169,14 +172,14 @@ def main():
     
     TRANSLATE = False
     if TRANSLATE:
-        logging.info(f"Start translation")
+        logging.info("Start translation")
         translated_sequences = parallel_gene_prediction(sequences, output_root / "proteins.faa", 4)
-        logging.info(f"Finished translation")
+        logging.info("Finished translation")
         torch.save(translated_sequences, output_root / "proteins.pt")
     else:
         translated_sequences = torch.load(output_root / "proteins.pt")
 
-    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/transformer/bhaldn09.ckpt").absolute(),
+    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/transformer/blitsDB_a4q0ml04.ckpt").absolute(),
                                                 map_location=device)
     model.to(device)
     model.eval()
@@ -185,20 +188,24 @@ def main():
         vocab_map = model.vocab_map
         max_seq_length = 56 # LATER ADD TO: model.max_seq_length
 
-    database_type = "hmm"
+    database_type = "mmseqs"
     if database_type == "hmm":
-        mDB = HMMER(hmm=model_database, db=output_root / "proteins.faa", out=output_root / "db_out" , scan=True)
-    
+        mDB = HMMER(hmm=model_database, db=output_root / "proteins.faa", out=model_database_out, scan=True)
+    elif database_type == "mmseqs":
+        mDB = SMMseqs2(input_fasta=output_root / "proteins.faa", mmseqs_db=model_database, output_dir=model_database_out)
+
     CALL_ALL = False
     if CALL_ALL:
-        mDB.scan()
-    
+        if database_type == "hmm":
+            mDB.scan()
+        elif database_type == "mmseqs":
+            mDB.run_alignment(threads=num_threads, evalue=1e-3)
+
     hits = mDB.get_best_hits()
     
     print("Vocabulary size: ", len(vocab_map))
     print("Markers used: ", len(set(x.target_name for x in hits.values())))
-    
-    seq_preds = []
+
     all_preds = []
     all_preds_prob = []
     protein_stride = 1
@@ -220,7 +227,11 @@ def main():
                 if length_dna + len(translated_sequence[current_index].seq) < chunk_size:
                     length_dna += len(translated_sequence[current_index].seq)
                     if translated_sequence[current_index].protein in hits:
-                        model_string.append(hits[translated_sequence[current_index].protein].target_name)
+                        if database_type == "hmm":
+                            model_string.append(hits[translated_sequence[current_index].protein].target_name)
+                        elif database_type == "mmseqs":
+                            target_name = hits[translated_sequence[current_index].protein].target_name.replace("|", "_")
+                            model_string.append(target_name)
                     else:
                         model_string.append('no_hit')
                     protein_string.append((translated_sequence[current_index].start, translated_sequence[current_index].end))

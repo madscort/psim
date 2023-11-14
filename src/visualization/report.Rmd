@@ -671,6 +671,7 @@ prediction <-
   mutate("tax" = factor(tax))
 
 prediction %>% 
+  filter(tax == "Citrobacter freundii") %>% 
   ggplot(aes(location, refid,
              fill = interaction(truth,prediction))) +
   geom_tile() +
