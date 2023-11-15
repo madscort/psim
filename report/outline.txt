@@ -1,5 +1,3 @@
-
-
 ### Report outline
 
 Preface
@@ -27,7 +25,13 @@ The data behind this project
 	Types of phage satellites in dataset
 		Can you define a phage satellite
 
->Deep learning
+>Dark areas in bioinformatics
+	Less information on viral genes, structure etc. (the reason for enrichment)
+	Something on hidden markov models and profiles
+		Why using profile instead of sequence search
+	Something on mmseqs maybe - speed in metagenomics
+
+>Machine learning / Deep learning
 Why is this even meaningful for this project.
 
 Two different model types:
@@ -43,6 +47,7 @@ Transformer - sequence of features
 	
 	The databases
 		How they were created
+		Description of the different class labels
 
 	* PLOT pre processing overview
 
@@ -90,19 +95,22 @@ Transformer - sequence of features
 
 >Modelling
 	Tuning and design
+		Architecture search
 		Model comparison on different versions of the dataset
 			Primary - only random metagenomics and random viral genes
 				How to tell this story? Baseline too good. Increase homology reduction, increase viral samples
 			First improvement - random metagenomics and prohages from same host
 			Second improvement - random metagenomics, host sequences and prophages same host
+		Score distribution - correct and wrong label calls
+		Score distribution pr. label
+
 	
 	Validation: Kfold cross-validation
-		Only final models
-
+		(Only final models - ie. best architecture for each of them (4).)
+		5-fold cross validation AUC with shade.
 
 	Interpretation: Feature contributions to predictions
-		CNN: absolute values of gradients. 
-
+		CNN: absolute values of integradet gradients. 
 
 
 >Inference
@@ -131,76 +139,13 @@ Choice of model types:
 Does the models actually learn anything?
 	Machine learning models cannot learn something that it hasnt been shown.
 
+	We train on one thing - do inference on another thing
+		Satellites are small 2-25kb contigs are small 100b and huge 600kb
+
+Try to explain why you can have the CNN do precise prediction on some reference genomes (e coli) and not on others (kocuria palustris)
+
 >Inference
 Is the output from the real-data experiments meaningful?
 
 
 -Conclusion
-
-
-
-
-##### Plots to be done:
-
-
-
-Plan until hand-in
-
-# U46
-Man
-Tir * Inference script done
-Ons > Start inception + captum until noon. Ulrik defence 2pm. Finalise plan
-Tor > 
-Fre > Work on inception and captum
-Lør 
-Søn > Work
-# U47
-Man
-Tir
-Ons
-Tor
-Fre
-Lør > Juletræs fældning
-Søn > Køre til møn
-# U48 
-Man
-Tir
-Ons
-Tor
-Fre
-Lør
-Søn
-# U49 Done with methods + theoretical background
-Man
-Tir
-Ons
-Tor
-Fre
-Lør
-Søn
-# U50 Done with results
-Man
-Tir
-Ons
-Tor
-Fre
-Lør
-Søn
-# U51 Done with discussion (added to continously)
-Man
-Tir
-Ons
-Tor
-Fre SLUT MED INDHOLD
-Lør Bornholm
-Søn Juleaften
-# U52
-Man 1. Juledag
-Tir 2. Juledag
-Ons
-Tor 
-Fre
-Lør
-Søn Nytårsaften
-
-
