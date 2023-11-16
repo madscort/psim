@@ -671,7 +671,30 @@ prediction <-
   mutate("tax" = factor(tax))
 
 prediction %>% 
-  filter(tax == "Citrobacter freundii") %>% 
+  filter(tax == "Klebsiella pneumoniae") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank()) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+```
+
+```{r}
+prediction <- 
+  read_delim("./../../data/visualization/sliding_window/version01_protein_version_blitsDB/predictions.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+prediction %>% 
+  filter(tax == "Klebsiella pneumoniae") %>% 
   ggplot(aes(location, refid,
              fill = interaction(truth,prediction))) +
   geom_tile() +
