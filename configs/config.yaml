@@ -4,15 +4,15 @@ devices: -1
 dataset: "dataset_v01"
 batch_size: 64
 num_workers: 4
-epochs: 30
-run_group: transformer_sweep_01
-run_name: transformer
+epochs: 100
+run_group: transformer_dc
+run_name: transformer_alldb
 
 defaults:
-  - model: inception
+  - model: transformer_profile
   - _self_
 
 optimizer:
   name: "adamw"
-  lr: 0.001
-  warmup: False
+  lr: 0.0002
+  warmup: True

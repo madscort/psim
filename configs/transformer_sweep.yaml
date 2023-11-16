@@ -1,0 +1,33 @@
+name: Transformer_sweep
+project: psim_v01
+program: src/models/LN_train.py
+method: bayes
+metric:
+  goal: maximize
+  name: test_f1
+parameters:
+  batch_size:
+    values: [64,128]
+  optimizer.name:
+    values: ["adamw"]
+  optimizer.lr:
+    values: [0.001,0.0005,0.0001]
+  optimizer.warmup:
+    values: [True,False]
+  model.params.fc_dropout_rate:
+    values: [0.2]
+  model.params.embedding_dim:
+    values: [16,32,64,128,256,512]
+  model.params.num_heads:
+    values: [2,4,8]
+  model.params.num_layers:
+    values: [2,4,6,8]
+  model.params.dim_feedforward:
+    values: [128,256,512,1024]
+  model.params.dim_fc:
+    values: [32,64,128,256,512]
+command:
+  - ${env}
+  - python3
+  - ${program}
+  - ${args_no_hyphens}

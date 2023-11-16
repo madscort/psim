@@ -126,8 +126,6 @@ class SequenceModule(pl.LightningModule):
             raise ValueError('Optimizer not supported')
         
         if self.warmup:
-            print(self.trainer.max_epochs)
-            print(self.steps_per_epoch)
             scheduler = OneCycleLR(
                 optimizer,
                 max_lr=self.lr, # The peak LR to achieve after warmup

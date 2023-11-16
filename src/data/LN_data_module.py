@@ -137,7 +137,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
     def setup(self, stage: str = None):
         
         if self.string_model:
-            self.data_splits = torch.load(self.dataset / "strings" / "mmDB" / "dataset.pt")
+            self.data_splits = torch.load(self.dataset / "strings" / "allDB" / "dataset.pt")
             vocab = set()
             for split in ['train', 'val', 'test']:
                 self.max_seq_length = max(self.max_seq_length, max(len(seq) for seq in self.data_splits[split]['sequences']))
@@ -153,7 +153,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         labels = self.data_splits['train']['labels']
         num_class_1 = labels.sum()
         num_class_0 = len(labels) - num_class_1
-        class_counts = [num_class_0, num_class_1]  # replace with your actual class counts
+        class_counts = [num_class_0, num_class_1]
         class_weights = [sum(class_counts) / class_count for class_count in class_counts]
         weight_sum = sum(class_weights)
         normalized_class_weights = [w / weight_sum for w in class_weights]

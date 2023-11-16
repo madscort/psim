@@ -1,5 +1,5 @@
 type: "Transformer"
-name: "BasicInception"
+name: "BasicTransformer"
 
 data:
   return_type: "hmm_match_sequence" # "fna" "hmm_match_sequence"
@@ -12,8 +12,8 @@ params:
   fc_dropout_rate: 0.20
   vocab_size: ${vocab_size} # Auto-populated by trainer.
   max_seq_length: ${max_seq_length} # Auto-populated by trainer.
-  embedding_dim: 10
-  num_heads: 5
-  num_layers: 1
-  dim_feedforward: 10 # Dimensions of feedforward layer inside transformer.
-  dim_fc: 10 # Dimensions of fully-connected layer after transformer.
+  embedding_dim: 64
+  num_heads: 4
+  num_layers: 2
+  dim_feedforward: 256 # Dimensions of feedforward layer inside transformer.
+  dim_fc: 6 # Dimensions of fully-connected layer after transformer.
