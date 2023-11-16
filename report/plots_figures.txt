@@ -1,0 +1,41 @@
+Plots and figures:
+
+Figures
+Project flowsheet 
+Database creation (including window cutting)
+CNN - final model or show as variable model. Including input
+Marker gene database creation - clustering visualisation
+Transformer - Including input, ie. translation and annotation 
+Inference - Different types, sliding algorithm, coordinate prediction.
+
+Plots
+-Input data
+Summary statistics on input databases
+	Genome size and gene counts
+	Class label imbalance
+	Species distribution
+		optional species distribution by class
+Nucleotide identity
+	Heat map
+		Between sequence types
+		Between satellite class labels
+			(super optional tree: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9380445/)
+
+-Modelling
+	CNN:
+		Architecture search (wandb in appendix)
+	Transformer:
+		Architecture search (wandb in appendix)
+	The four model comparisons
+		Baseline - CNN - Transformer - CNN+Transformer
+		AUC on the different datasets
+		Confusion matrix on final dataset
+		Probability score distribution for each class label!
+	
+	Final model
+		5-fold cross validation AUC with shade.
+		Score distribution - correct and wrong label calls
+		Score distribution pr. label
+
+-Inference only with best model
+	See plots in notes

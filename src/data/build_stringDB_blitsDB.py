@@ -30,18 +30,12 @@ from typing import List, Tuple
 # 2. Predict genes
 # 3. Cluster with mmseqs2
 
-## 2. Profile creation - de-novo version:
-# 1. Collect proteins for each cluster in single fasta file -> fasta format
-# 2. Align clusters with clustal omega -> clustal format
-# 3. Build hmm profiles with hmmmake -> hhm format
-# 4. Convert to hhm with hhmake -> hmm format
-
 ## 2+. Profile creation - de-novo + enrichment version:
 # 1. Collect proteins for each cluster in single fasta file -> fasta format
-# 2. Align clusters with clustal omega -> clustal format
-# 3. Build hmm profiles with hhmake -> hhm format
-# 4. Convert to hmm with hhmake -> hmm format
-
+# 2. Align clusters with clustal omega -> clustal format -> reformat.pl -> a3m format
+# 3. Run HHblits on each alignment -> a3m format
+# 4. Reformat to stockholm and concatenate all alignments -> reformat.pl -> stockholm format -> concat all alignments
+# 5. Create profileDB
 
 ## 3. Predictions - base version - hmmsearch/hmmscan:
 # 1. Translate dataset -> fasta format
@@ -75,7 +69,6 @@ def parallel_gene_prediction(dataset: Path, output: Path, samples: List[str], th
     with open(output / "proteins.faa", "w") as f_out:
         for proteins in results:
             write_proteins_to_file(proteins, f_out)
-
 
 def gene_prediction_string(sequence: str=None) -> list[Protein]:
     proteins = []
@@ -164,6 +157,81 @@ class MMseqs2:
             if counts[cluster] >= min_size:
                 representatives.append(cluster)
         return representatives
+    
+    def prep_pcDB(self, outf: Path, profileDB: Path):
+        self.outPC = outf
+        self.outPC.mkdir(parents=True, exist_ok=True)
+        self.profileDB = profileDB
+        self.representativesDB = self.outPC / "representativesDB"
+        self.profilesearchDB = self.outPC / "profileSearchDB"
+        self.profileCluster = self.outPC / "profileCluster"
+        self.profileClusterDB = self.outPC / "profileClusterDB"
+
+    def create_repDB(self):
+        cmd = ['mmseqs', 'profile2consensus', self.profileDB, self.outPC / "representativesDB"]
+        subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+        if subprocess_return.returncode != 0:
+            raise Exception(f"Error running mmseqs2: {subprocess_return}")
+
+    # 1.Additional input:
+    # Representatives: mmseqs profile2repseq (here:in)profileDB (here:out)representativesDB
+    # OR:
+    # Consensus: mmseqs profile2consensus (here:in)profileDB (here:out)representativesDB
+    
+    # 2. Cluster profiles:
+    # mmseqs search (here:in)profileDB (here:in)representativesDB (here:out)profileSearchDB tmp --add-self-matches (calculates distances)
+    # mmseqs clust (here:in)profileDB (here:in)profileSearchDB (here:out)profileCluster --cluster-mode 1 --similarity-type 1
+
+    def profile_search(self):
+        cmd = ['mmseqs', 'search',
+            self.profileDB,
+            self.representativesDB,
+            self.profilesearchDB,
+            self.outPC / "tmp",
+            '--add-self-matches',
+            '-e','1e-5',
+            '-s','7',
+            '-c','0.90',
+            '--cov-mode','0',
+            '--qid','0.30']
+        subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+        if subprocess_return.returncode != 0:
+            raise Exception(f"Error running mmseqs2: {subprocess_return}")
+
+    def profile_cluster(self):
+        cmd = ['mmseqs', 'clust',
+            self.profileDB,
+            self.profilesearchDB,
+            self.profileCluster,
+            '--cluster-mode', '0']
+        subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+        if subprocess_return.returncode != 0:
+            raise Exception(f"Error running mmseqs2: {subprocess_return}")
+    
+    def parsePC(self):
+        cmd = ['mmseqs', 'createtsv', self.profileDB, self.profileDB, self.profileCluster, self.outPC / "profileCluster.tsv"]
+        subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+        if subprocess_return.returncode != 0:
+            raise Exception(f"Error running mmseqs2: {subprocess_return}")
+        
+    def createPCDB(self):
+        cmd = ['mmseqs', 'createsubdb', self.profileCluster, self.profileDB, self.profileClusterDB]
+        subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
+        if subprocess_return.returncode != 0:
+            raise Exception(f"Error running mmseqs2: {subprocess_return}")
+    
+    def pcounts(self):
+        with open(self.outPC / "profileCluster.tsv") as f:
+            counts = Counter([line.strip().split("\t")[0] for line in f])
+        return counts
+    
+    def PCDBreps(self, min_size: int):
+        counts = self.pcounts()
+        representatives = []
+        for cluster in counts:
+            if counts[cluster] >= min_size:
+                representatives.append(cluster)
+        return representatives
 
 class CLUSTALO:
     def __init__(self, fasta: Path, out: Path, threads: int = 1):
@@ -203,11 +271,7 @@ class SMMseqs2:
             align_db,
             self.output_dir,
             "--threads", str(threads),
-            '--start-sens', '1',
-            '--sens-steps', '3',
-            '-s','7',
-            "-c", "0.6",
-            "--cov-mode", "1"
+            '-s', '5'
         ]
         self._run_command(align_command, "Alignment failed")
 
@@ -242,7 +306,7 @@ class SMMseqs2:
         ]
         self._run_command(convertalis_command_2, "Result conversion failed")
         print(f"Alignment and result conversion completed. Results are in: {self.result_file}")
-
+    
     def _run_command(self, command: list, error_message: str) -> None:
         try:
             subprocess.run(command, check=True)
@@ -277,14 +341,19 @@ class HHSUITE:
             raise Exception(f"Error running hhmake: {subprocess_return}")
 
 
-def cat_alignments(input: Path, output: Path):
+def cat_alignments(input: Path, output: Path, rmdesc: bool = False):
     # Concat all alignments into one file:
     alignments = list(input.glob("*.st"))
     with open(output, "w") as f_out:
         for alignment in alignments:
             with open(alignment) as f_in:
-                for line in f_in:
-                    print(line.strip(), file=f_out)
+                if rmdesc:
+                    for line in f_in:
+                        if not line.startswith("#="):
+                            print(line.strip(), file=f_out)
+                else:
+                    for line in f_in:
+                        print(line.strip(), file=f_out)
             print("\n", file=f_out)
 
 def convert_alignments(msa: Path, output: Path):
@@ -293,18 +362,20 @@ def convert_alignments(msa: Path, output: Path):
     profile_root = output / "mmseqsprofileDB"
     msa_root.mkdir(parents=True, exist_ok=True)
     profile_root.mkdir(parents=True, exist_ok=True)
-    
+    logging.info("Converting alignments to msaDB...")
     cmd = ['mmseqs', 'convertmsa', msa, msa_root / "msaDB"]
     subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
     if subprocess_return.returncode != 0:
         raise Exception(f"Error running mmseqs convertmsa: {subprocess_return}")
-    cmd = ['mmseqs', 'msa2profile', msa_root / "msaDB", profile_root / "profileDB", '--match-mode', '1']
+    logging.info("Converting alignments to profileDB...")
+    cmd = ['mmseqs', 'msa2profile', msa_root / "msaDB", profile_root / "profileDB", '--match-mode', '0', '--cov', '0.9', '--qid', '0.5']
     subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
     if subprocess_return.returncode != 0:
         raise Exception(f"Error running mmseqs msa2profile: {subprocess_return}")
     with TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
-        cmd = ['mmseqs', 'createindex', '-s', '7', profile_root / "profileDB", tmpdir]
+        logging.info("Indexing profileDB..")
+        cmd = ['mmseqs', 'createindex', '-s', '6', profile_root / "profileDB", tmpdir]
         subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
         if subprocess_return.returncode != 0:
             raise Exception(f"Error running mmseqs createindex: {subprocess_return}")
@@ -318,8 +389,8 @@ if __name__ == '__main__':
 
     dataset = Path("data/processed/10_datasets/dataset_v01")
     sampletable = dataset / "train.tsv"
-    output = Path("data/processed/10_datasets/attachings_mmDB")
-    output_path = dataset / "strings" / "mmDB"
+    output = Path("data/processed/10_datasets/attachings_blitsDB")
+    output_path = dataset / "strings" / "blitsDB"
     samples = get_samples(sampletable)
     output.mkdir(parents=True, exist_ok=True)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -333,13 +404,21 @@ if __name__ == '__main__':
     CLUSTER = False
     SAVE_REPRESENTATIVES = False
     COLLECT_CLUSTERS = False
-    ALIGN_CLUSTERS = True
+    ALIGN_CLUSTERS = False
+    A3M_CONVERSION = False
+
+    # After HHBlits
+    STO_CONVERSION = False
     CONVERT_ALIGNMENTS = False
-    OPT_A3M_CONVERSION = False
     MMSEARCH_REPRESENTATIVES = False
+
+    # Cluster profiles
+    PROFILE_CLUSTER = False
+    MMRESEARCH_REPRESENTATIVES = True
+
     TRANSLATE_DATASET = False
-    SCAN_DATASET = False
-    ATTACH_TO_DATASET = False
+    SCAN_DATASET = True
+    ATTACH_TO_DATASET = True
 
     if COLLECT_PROTEINS:
         logging.info("Collecting proteins...")
@@ -390,19 +469,11 @@ if __name__ == '__main__':
         cat_alignments(alignment_root, output / "alignments.st")
         logging.info("Done aligning clusters.")
 
-    if CONVERT_ALIGNMENTS:
-        # Convert to msaDB, then profileDB, then index:
-        logging.info("Converting alignments to profileDB...")
-        convert_alignments(msa=output / "alignments.st", output=output)
-        logging.info("Done converting alignments to profileDB.")
-    unused = ["PS_U1976|25", "PS_U909|15"]
-    if OPT_A3M_CONVERSION:
+    if A3M_CONVERSION:
         logging.info("Converting alignments to A3M...")
         a3m_root = output / "alignments_a3m"
         a3m_root.mkdir(parents=True, exist_ok=True)
         for representative in tqdm(representatives):
-            if representative in unused:
-                continue
             clu_input = output / "alignments" / f"{representative.replace('|','_')}.st"
             a3m_output = a3m_root / f"{representative.replace('|','_')}.a3m"
             hh = HHSUITE(input=clu_input, out=a3m_output)
@@ -411,24 +482,84 @@ if __name__ == '__main__':
     # (optional v1 enrichment) reformat stockholm files to a3m
     # (optional v1 enrichment) run hhblits with a3m files
     # (optional v1 enrichment) reformat a3m files to stockholm
+
     # (optional v2 enrichment) bypass alignment extract individual fasta files
     # (optional v2 enrichment) run colabfold search with fasta files
     # (optional v2 enrichment) reformat a3m files to stockholm
 
-    mm = SMMseqs2(input_fasta=output / "representatives.faa", mmseqs_db=output / "mmseqsprofileDB" / "profileDB", output_dir=output / "mmsearch")
+    ####
+    ## Manual remove (iteration)
+    ####
+
+    unused = {'PS_U1976|25', 'PS_U121|1', 'PS_U909|15', 'PS_R2278|14', 'PS_U2368|15'}
+
+    if STO_CONVERSION:
+        logging.info("Converting alignments from a3m to STO...")
+        alignment_root = output / "alignments_sto"
+        alignment_root.mkdir(parents=True, exist_ok=True)
+        for representative in tqdm(representatives):
+            if representative in unused:
+                continue
+            a3m_input = output / "alignments_a3m" / f"{representative.replace('|','_')}.a3m"
+            sto_output = alignment_root / f"{representative.replace('|','_')}.st"
+            hh = HHSUITE(input=a3m_input, out=sto_output)
+            hh.convert(in_format="a3m", out_format="sto")
+        cat_alignments(alignment_root, output / "alignments.st", rmdesc=True)
+    
+    if CONVERT_ALIGNMENTS:
+        # Convert to msaDB, then profileDB, then index:
+        convert_alignments(msa=output / "alignments.st", output=output)
+        logging.info("Done converting alignments to profileDB.")
+
+    smm = SMMseqs2(input_fasta=output / "representatives.faa", mmseqs_db=output / "mmseqsprofileDB" / "profileDB", output_dir=output / "mmsearch")
     
     if MMSEARCH_REPRESENTATIVES:
         logging.info("Searching representatives...")
-        mm.run_alignment(threads=num_threads, evalue=1e-3)
+        smm.run_alignment(threads=num_threads, evalue=1e-3)
         logging.info("Done searching representatives.")
 
-    hit_reps = mm.get_best_hits()
+    ## 
+    # 1.Additional input:
+    # mmseqs createsubdb (here:in)clusterDB (here:out)representativesDB (extract original representatives)
+
+    # 2. Cluster profiles:
+    # mmseqs search (here:in)profileDB (here:in)representativesDB (here:out)profileSearchDB tmp -e 0.05 --add-self-matches (calculates distances)
+    # mmseqs clust (here:in)profileDB (here:in)profileSearchDB profileClusterDB--cluster-mode 1 --similarity-type 1
+    
+    mm.prep_pcDB(outf=output / "mmseqsprofileclusterDB", profileDB=output / "mmseqsprofileDB" / "profileDB")
+
+    if PROFILE_CLUSTER:
+        logging.info("Extracting representatives...")
+        mm.create_repDB()
+        logging.info("Profiles search...")
+        mm.profile_search()
+        logging.info("Profile cluster...")
+        mm.profile_cluster()
+        logging.info("Parsing profile cluster...")
+        mm.parsePC()
+        logging.info("Creating profile cluster DB...")
+        mm.createPCDB()
+        logging.info("Done creating profile cluster DB.")
+
+
+    rmm = SMMseqs2(input_fasta=output / "representatives.faa", mmseqs_db=output / "mmseqsprofileclusterDB" / "profileclusterDB", output_dir=output / "mmresearch")
+    if MMRESEARCH_REPRESENTATIVES:
+        logging.info("Searching representatives...")
+        rmm.run_alignment(threads=num_threads, evalue=1e-3)
+        logging.info("Done searching representatives.")
+    
+    profile_reps = mm.PCDBreps(min_size=0)
+    hit_reps = rmm.get_best_hits()
     representatives_used = set([hit_reps[rep].target_accession for rep in hit_reps])
-    reps = set([i.replace('|','_') for i in representatives])
+    reps = set([i.replace('|','_') for i in profile_reps])
     logging.info(f"Number of representatives: {len(reps)}")
     logging.info(f"Number of representatives used: {len(representatives_used)}")
-    logging.info(f"Number of representatives not used: {reps - representatives_used}")
-    
+    logging.info(f"Number of representatives not used: {len(reps - representatives_used)}")
+    logging.info("Representatives not found:")
+    for rep in set(representatives) - set(hit_reps.keys()):
+        print(rep)
+    logging.info(f"Number of representatives not found: {len(set(representatives) - set(hit_reps.keys()))}")
+
 
     splits = ["train", "val", "test"]
 
@@ -467,7 +598,7 @@ if __name__ == '__main__':
         out_path = output / f"mm_{split}_search"
         out_path.mkdir(parents=True, exist_ok=True)
 
-    mm_splits = { split: SMMseqs2(input_fasta=output / f"{split}_split.faa", mmseqs_db=output / "mmseqsprofileDB" / "profileDB", output_dir=output / f"mm_{split}_search") for split in splits}
+    mm_splits = { split: SMMseqs2(input_fasta=output / f"{split}_split.faa", mmseqs_db=output / "mmseqsprofileclusterDB" / "profileclusterDB", output_dir=output / f"mm_{split}_search") for split in splits}
 
     if SCAN_DATASET:
         logging.info("Scanning dataset...")
@@ -494,7 +625,7 @@ if __name__ == '__main__':
             vocab.update(x for seq in hmm_data_splits[split]['sequences'] for x in seq)
         vocab_map = {name: i for i, name in enumerate(vocab)}
         vocab.remove("no_hit")
-        accessions = set([i.replace('|','_') for i in representatives])
+        accessions = set([i.replace('|','_') for i in profile_reps])
         print(f"Number of non-redundant accessions in HMM database: {len(accessions)}")
         print(f"Number of non-redundant accessions used in dataset: {len(vocab)}")
         print(f"Accessions numbers not used: {len(accessions - vocab)}")
