@@ -668,7 +668,7 @@ prediction <-
              col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
   mutate("truth" = factor(truth)) %>% 
   mutate("prediction" = factor(prediction)) %>% 
-  mutate("tax" = factor(tax))
+  mutate("tax" = factor(tax)) 
 
 prediction %>% 
   filter(tax == "Klebsiella pneumoniae") %>% 
