@@ -150,11 +150,39 @@ scores %>%
 
 
 ```
+# ONLY TRUE LABELS BY TAX SPECIES
 
+## MAPPY
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/taxspecies/mappy_base/mappy.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+fact_lvls <- scores %>% 
+  group_by(pred_id) %>% 
+  summarise(n = n()) %>% 
+  arrange(n) %>% pull(pred_id)
+
+scores <- scores %>% 
+  mutate("pred_id" = factor(pred_id, levels = fact_lvls))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+```
+
+
+## CNN
 
 
 ```{r}
-# ONLY TRUE LABELS BY TAX SPECIES
+
 scores <- 
   read_delim("./../../data/visualization/score_distribution/taxspecies/inception/ko59yma9.tsv",
              col_names = c("pred_id","score","label")) %>% 
@@ -173,8 +201,6 @@ scores %>%
   geom_boxplot() +
   geom_jitter(height = 0.1) +
   theme_minimal()
-
-
 
 ```
 

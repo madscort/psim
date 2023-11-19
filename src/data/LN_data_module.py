@@ -21,7 +21,7 @@ def collate_fn_pad(batch):
     
     labels = torch.stack(labels)
 
-    return {"seqs": sequences_padded, "lengths": lengths}, labels
+    return sequences_padded, labels
 
 def encode_sequence(sequence, vocabulary_mapping):
     return [vocabulary_mapping[gene_name] for gene_name in sequence]
@@ -137,7 +137,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
     def setup(self, stage: str = None):
         
         if self.string_model:
-            self.data_splits = torch.load(self.dataset / "strings" / "blitsDB" / "dataset.pt")
+            self.data_splits = torch.load(self.dataset / "strings" / "allDB" / "dataset.pt")
             vocab = set()
             for split in ['train', 'val', 'test']:
                 self.max_seq_length = max(self.max_seq_length, max(len(seq) for seq in self.data_splits[split]['sequences']))

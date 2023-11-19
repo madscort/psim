@@ -4,24 +4,12 @@ import pandas as pd
 from pathlib import Path
 from pytorch_lightning import seed_everything
 from torch.nn.functional import softmax
-from torch import topk
-from captum.attr import IntegratedGradients
+from torch import norm
+from captum.attr import IntegratedGradients, LayerIntegratedGradients
 from captum.attr import NoiseTunnel
 import matplotlib.pyplot as plt
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
-
-def bin_attributions(attributions, bin_size=3):
-    bin_size = min(bin_size, len(attributions))
-
-    binned_attributions = [
-        np.mean(attributions[i:i+bin_size]) 
-        for i in range(0, len(attributions) - bin_size + 1, bin_size)
-    ]
-    return binned_attributions
-
-
-
 
 def main():
 
@@ -29,60 +17,63 @@ def main():
     
     dataset_root = Path("data/processed/10_datasets/")
     dataset = dataset_root / "dataset_v01"
-    outf = Path("data/visualization/captum/integrated_gradients/inception/")
+    outf = Path("data/visualization/captum/integrated_gradients/transformer/")
     outf.mkdir(parents=True, exist_ok=True)
-    modelin = Path("models/inception/checkpoint/ko59yma9.ckpt")
+    outfn = outf / "aggregated_lig_all.tsv"
+    modelin = Path("models/transformer/alldb_small_wodict_ne6zbqji.ckpt")
     data_module = FixedLengthSequenceModule(dataset=dataset,
-                                            return_type="fna",
+                                            return_type="hmm_match_sequence",
                                             num_workers=1,
                                             batch_size=1,
-                                            pad_pack=False,
-                                            use_saved=False)
+                                            pad_pack=True,
+                                            use_saved=True)
     data_module.setup()
 
     model = SequenceModule.load_from_checkpoint(checkpoint_path=modelin,
                                                 map_location="cpu")
+    vocab = model.vocab_map
+    inv_vocab = {v: k for k, v in vocab.items()}
 
     model.eval()
+    
     df = pd.read_csv(dataset / "test.tsv", sep="\t", header=0, names=["id", "type", "label"])
     test_labels = df["label"].values.tolist()
-    # Next get coordinates..
+    test_types = df["type"].values.tolist()
+    
+    with open(outfn, "w") as fout:
+        for n, (seq, label) in enumerate(data_module.test_dataloader()):
+            proteins = [inv_vocab[x] for x in seq.squeeze().detach().numpy()]
+            
+            lig = LayerIntegratedGradients(model, model.model.embedding)
+            attributions_ig = lig.attribute(inputs=seq, target=1, n_steps=200)
+            attributions = attributions_ig.sum(dim=-1).squeeze(0)
+            attributions = attributions / norm(attributions)
 
-    for n, (seq, label) in enumerate(data_module.test_dataloader()):
-
-        out = model(seq)
-        outs = softmax(out, dim=1)
-        prob, l = topk(outs, 1)
-        print(out, prob.detach().squeeze(), label.squeeze(), l.squeeze())
-        
-        integrated_gradients = IntegratedGradients(model)
-        
-        # attributions_ig = integrated_gradients.attribute(seq,
-        #                                                         target=label,
-        #                                                         n_steps=200)
-        # attributions =  attributions_ig.detach().cpu().squeeze().numpy()
-        # aggregated_attributions = np.sum(np.abs(attributions), axis=0)
+            for protein, attribution in zip(proteins, attributions):
+                origin = "unknown"
+                if protein.startswith("IMGVR"):
+                    origin = "provirus"
+                elif protein.startswith("PS"):
+                    origin = "satellite"
+                elif protein.startswith("N") or protein.startswith("D") or protein.startswith("C"):
+                    origin = "host"
+                elif protein.startswith("S"):
+                    origin = "metagenome"
 
 
-        noise_tunnel = NoiseTunnel(integrated_gradients)
+                print(protein,
+                    attribution.item(),
+                    origin,
+                    sep="\t", file=fout)
 
-        attributions_nt = noise_tunnel.attribute(seq,target=label, nt_samples=10, nt_type='smoothgrad_sq')
-        attributions =  attributions_nt.detach().cpu().squeeze().numpy()
-        aggregated_attributions = np.sum(np.abs(attributions), axis=0)
-        
-        # Normalizing the aggregated attributions
-        normalized_attributions = aggregated_attributions / np.linalg.norm(aggregated_attributions, ord=1)
-        normalized_attributions = bin_attributions(normalized_attributions)
-        # Visualizing the normalized attributions
-        plt.figure(figsize=(15, 5))
-        plt.plot(normalized_attributions, label='Importance')
-        plt.xlabel('Sequence Position')
-        plt.ylabel('Normalized Importance')
-        plt.title('Aggregated Sequence Position Importance')
-        plt.legend()
-        plt.savefig(outf / "aggregated_importance_bins.png")
-        plt.clf()
-        sys.exit()
+            # Visualizing the normalized attributions
+            # plt.figure(figsize=(20, 5))
+            # plt.barh(proteins, attributions)
+            # plt.ylabel("Proteins")
+            # plt.xlabel("Attribution")
+            # plt.title("Integrated Gradients Attributions per Protein")
+            # plt.xticks(rotation=45)
+            # plt.show()
 
 
 if __name__ == "__main__":

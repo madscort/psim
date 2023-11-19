@@ -67,6 +67,7 @@ Transformer - sequence of features
 		General modelling setup
 
 		CNN model
+			One hot encoding
 			Hyperparameter and architecture tuning
 		
 		Transformer model
@@ -75,6 +76,7 @@ Transformer - sequence of features
 				de-novo hmms for satellites
 				hhblits for enrichment for satellites
 				satellites only
+			Embedding layer
 
 >Inference on real data
 	How inference is done:
@@ -135,7 +137,9 @@ Choice of model types:
 		-> alphafold, colabfold, using pre-trained ESM model for embeddings on proteins (contains structural information).
 
 	CNN should be able to tak input learn something from a wide area and reduce the information step by step. Ie. kmers etc etc.
-
+	CNN should find something that is stable in the sequence, ie. attachment site - motif - or something similar - something that is in between genes.
+	The transformer model should find something different - something that is related to the function and order of the genes.
+ 
 Does the models actually learn anything?
 	Machine learning models cannot learn something that it hasnt been shown.
 

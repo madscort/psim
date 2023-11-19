@@ -1,0 +1,81 @@
+---
+title: "transformer_interpretation"
+author: "Mads Cort Nielsen"
+date: "2023-11-17"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+
+ig <- 
+  read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_positives.tsv",
+             col_names = c("protein","attribution", "origin")) %>%
+  drop_na()
+
+```
+
+```{r}
+protein_order <- 
+  ig %>% 
+  group_by(protein) %>% 
+  summarise(n = n()) %>% 
+```
+
+
+```{r}
+View(ig)
+```
+
+
+```{r}
+topp <- ig %>% 
+  mutate("attr_abs" = abs(attribution)) %>% 
+  group_by(protein) %>% 
+  summarise(attr_sum = mean(attr_abs)) %>% 
+  arrange(desc(attr_sum)) %>%
+  slice(1:10) %>%
+  select(protein)
+```
+
+```{r}
+attribution_order <- ig %>% 
+  group_by(protein) %>% 
+  summarise(attr_sum = mean(attribution)) %>% 
+  arrange(desc(attr_sum)) %>%
+  pull(protein)
+```
+
+
+```{r}
+ig %>% 
+  group_by(protein) %>% 
+  summarise(attr_sum = mean(attribution)) %>% 
+  arrange(desc(attr_sum))
+```
+
+
+```{r}
+ig %>% 
+  inner_join(topp) %>% 
+  ggplot(aes(protein, attribution)) + 
+  geom_boxplot() +
+  geom_point() +
+  coord_flip() +
+  theme(legend.position = "none")
+```
+
+```{r}
+ig %>% 
+  mutate("protein" = factor(protein, levels = attribution_order)) %>% 
+  ggplot(aes(protein, attribution, color = origin)) + 
+  geom_point() +
+  theme(legend.position = "none",
+        axis.text.x = element_blank(),
+        axis.ticks = element_blank())
+```
+
