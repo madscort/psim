@@ -1,6 +1,7 @@
 import hydra
 import wandb
 import sys
+from collections import Counter
 from pathlib import Path
 from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
@@ -17,6 +18,25 @@ import pandas as pd
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
 
+def custom_stratify(df, stratify_col, small_class_threshold=10):
+    # Identify small classes
+    small_classes = df[stratify_col].value_counts()[df[stratify_col].value_counts() < small_class_threshold].index
+
+    # Separate small and large classes
+    df_small = df[df[stratify_col].isin(small_classes)]
+    df_large = df[~df[stratify_col].isin(small_classes)]
+
+    # Split large classes with stratification
+    train_idx_large, test_idx_large = train_test_split(df_large.index, stratify=df_large[stratify_col], test_size=0.1, random_state=1)
+
+    # Randomly split small classes
+    train_idx_small, test_idx_small = train_test_split(df_small.index, test_size=0.1, random_state=1)
+
+    # Combine indices
+    train_idx = train_idx_large.union(train_idx_small)
+    test_idx = test_idx_large.union(test_idx_small)
+
+    return train_idx, test_idx
 
 @hydra.main(config_path="../../configs", config_name="config", version_base="1.2")
 def main(cfg: DictConfig):
@@ -25,27 +45,19 @@ def main(cfg: DictConfig):
 
     dataset_root = Path("data/processed/10_datasets/")
     dataset = Path(dataset_root, cfg.dataset)
-    sampletable = Path(dataset, "sampletable.tsv")  
+    sampletables = [pd.read_csv(dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"]) for split in ['train', 'val', 'test']]
+    df_sampletable = pd.concat(sampletables, ignore_index=True)
 
     # Initialize the StratifiedKFold object
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=1)
 
-    # Load sampletable
-    df_sampletable = pd.read_csv(sampletable, sep="\t", header=None, names=['id', 'type', 'label'])
-    
     fold_results = []
 
     for fold, (fit_idx, test_idx) in enumerate(skf.split(df_sampletable['id'], df_sampletable['type'])):
-        
-        wandb_logger = WandbLogger(project=cfg.project,
-                               config=OmegaConf.to_container(cfg,
-                                                             resolve=True),
-                               name=f"{cfg.run_name}_fold{fold+1}",
-                               group=cfg.run_group)
+        print(f"Fold {fold}")
+        # Split the training data into training and validation sets
 
-
-        # split the fit_idx into train and val
-        train_idx, val_idx = train_test_split(fit_idx, stratify=df_sampletable.iloc[fit_idx]['type'], test_size=0.2)
+        train_idx, val_idx = custom_stratify(df_sampletable.iloc[fit_idx], 'type')
 
         
         data_module = FixedLengthSequenceModule(dataset=dataset,
@@ -68,6 +80,11 @@ def main(cfg: DictConfig):
         class_weights = data_module.class_weights
         steps_per_epoch = data_module.steps_per_epoch
         vocab_map = data_module.vocab_map
+
+        wandb_logger = WandbLogger(project=cfg.project,
+                                   config=OmegaConf.to_container(cfg,resolve=True),
+                                   name=f"{cfg.run_name}_fold{fold+1}",
+                                   group=cfg.run_group)
 
         model = SequenceModule(model_config=cfg.model,
                                lr=cfg.optimizer.lr,

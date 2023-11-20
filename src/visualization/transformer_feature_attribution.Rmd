@@ -19,16 +19,12 @@ ig <-
 
 ```
 
+
 ```{r}
-protein_order <- 
-  ig %>% 
+ig %>% 
   group_by(protein) %>% 
   summarise(n = n()) %>% 
-```
-
-
-```{r}
-View(ig)
+  arrange(desc(n))
 ```
 
 
@@ -38,7 +34,7 @@ topp <- ig %>%
   group_by(protein) %>% 
   summarise(attr_sum = mean(attr_abs)) %>% 
   arrange(desc(attr_sum)) %>%
-  slice(1:10) %>%
+  slice(1:20) %>%
   select(protein)
 ```
 
@@ -62,11 +58,11 @@ ig %>%
 ```{r}
 ig %>% 
   inner_join(topp) %>% 
-  ggplot(aes(protein, attribution)) + 
+  ggplot(aes(protein, attribution, color = origin)) + 
   geom_boxplot() +
   geom_point() +
   coord_flip() +
-  theme(legend.position = "none")
+  theme(legend.position = "bottom")
 ```
 
 ```{r}
@@ -74,8 +70,106 @@ ig %>%
   mutate("protein" = factor(protein, levels = attribution_order)) %>% 
   ggplot(aes(protein, attribution, color = origin)) + 
   geom_point() +
-  theme(legend.position = "none",
+  theme(legend.position = "bottom",
         axis.text.x = element_blank(),
         axis.ticks = element_blank())
 ```
 
+```{r}
+ig %>% 
+  #mutate("protein" = factor(protein, levels = attribution_order)) %>% 
+  ggplot(aes(origin, attribution)) + 
+  geom_boxplot() +
+  coord_flip() + 
+  theme(legend.position = "bottom")
+```
+
+
+
+
+```{r}
+
+ig_all <- 
+  read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_all.tsv",
+             col_names = c("protein","attribution", "origin")) %>%
+  drop_na()
+
+```
+
+```{r}
+ig_all %>% 
+  #mutate("protein" = factor(protein, levels = attribution_order)) %>% 
+  ggplot(aes(origin, attribution)) + 
+  geom_boxplot() +
+  coord_flip() + 
+  theme(legend.position = "bottom")
+```
+
+```{r}
+attribution_order_all <- ig_all %>% 
+  group_by(protein) %>% 
+  summarise(attr_sum = mean(attribution)) %>% 
+  arrange(desc(attr_sum)) %>%
+  pull(protein)
+```
+
+```{r}
+ig_all %>% 
+  mutate("protein" = factor(protein, levels = attribution_order_all)) %>% 
+  ggplot(aes(protein, attribution, color = origin)) + 
+  geom_point() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_blank(),
+        axis.ticks = element_blank())
+```
+
+
+
+```{r}
+sumstats <- ig_all %>%
+  group_by(origin) %>%
+  summarise(
+    count = n(),
+    mean = mean(attribution, na.rm=TRUE),
+    stddev = sd(attribution, na.rm=TRUE),
+    meansd_l = mean - stddev,
+    meansd_u = mean + stddev
+  )
+```
+
+```{r}
+sumstats
+```
+
+
+```{r}
+sumstats %>% 
+  ggplot(aes(x=origin, y=mean)) + 
+  geom_point() +
+  geom_errorbar(aes(ymin = meansd_l, ymax = meansd_u), width=0.1) +
+  labs(x="Species", y = "Mean (-/+SD) Petal Width (cm)") +
+  theme_minimal()
+```
+
+```{r}
+sumstats_abs <- ig_all %>% 
+  mutate("abs_attribution" = abs(attribution)) %>% 
+  group_by(origin) %>%
+  summarise(
+    count = n(),
+    mean = mean(abs_attribution, na.rm=TRUE),
+    stddev = sd(abs_attribution, na.rm=TRUE),
+    meansd_l = mean - stddev,
+    meansd_u = mean + stddev
+  )
+```
+
+
+```{r}
+sumstats_abs %>% 
+  ggplot(aes(x=origin, y=mean)) + 
+  geom_point() +
+  geom_errorbar(aes(ymin = meansd_l, ymax = meansd_u), width=0.1) +
+  labs(x="Species", y = "Mean (-/+SD) Petal Width (cm)") +
+  theme_minimal()
+```
