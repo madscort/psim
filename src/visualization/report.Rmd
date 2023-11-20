@@ -668,10 +668,33 @@ prediction <-
              col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
   mutate("truth" = factor(truth)) %>% 
   mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax)) 
+
+prediction %>% 
+  filter(tax == "Klebsiella pneumoniae") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank()) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+```
+
+```{r}
+prediction <- 
+  read_delim("./../../data/visualization/sliding_window/version01_protein_version_blitsDB/predictions.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
   mutate("tax" = factor(tax))
 
 prediction %>% 
-  filter(tax == "Citrobacter freundii") %>% 
+  filter(tax == "Klebsiella pneumoniae") %>% 
   ggplot(aes(location, refid,
              fill = interaction(truth,prediction))) +
   geom_tile() +
@@ -738,3 +761,61 @@ distr %>%
   geom_histogram()
 ```
 
+
+```{r}
+library(forcats)
+library(patchwork)
+library(scales)
+
+dist <- read_delim("./../../data/visualization/mash_map/mash_dist_ps_only.tsv",
+                   col_names = c("var1","var2","distance", "contig_type")) %>% 
+  mutate("contig_type" = factor(contig_type, levels = unique(contig_type))) %>% 
+  mutate("var1" = factor(var1, levels = unique(var1)[order(contig_type)])) %>% 
+  mutate("var2" = factor(var2, levels = unique(var2)[order(contig_type)]))
+
+color_strip_data_var2 <- dist %>%
+  select(var2, contig_type) %>%
+  distinct() %>%
+  arrange(var2, contig_type)
+
+p2 <- dist %>% 
+  ggplot(aes(x = var1, y = var2, fill = distance)) +
+  geom_tile() +
+  scale_fill_gradientn(colours=c("red", "orange", "white"),
+                       values=rescale(c(0, 0.1, 1)),
+                       guide="colorbar") +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(0, 0, 0, 0, "pt")
+  )
+
+# Colorbar plot
+p3 <- ggplot(dist, aes(x = var1, y = 1, fill = contig_type)) +
+  geom_tile() +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank(),
+        plot.margin = margin(0, 0, 0, 0, "pt"))
+
+p1 <- ggplot(dist, aes(x = 1, y = var1, fill = contig_type)) +
+  geom_tile() +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  theme(legend.position = "none",
+        plot.margin = margin(0, 0, 0, 0, "pt"))
+
+p1 + p2 + plot_spacer() + plot_spacer() + p3 + plot_layout(ncol = 3,
+                                   widths = c(1, 10),
+                                   heights = c(10, 1))
+
+
+```

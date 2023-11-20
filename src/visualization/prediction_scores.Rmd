@@ -1,0 +1,222 @@
+---
+title: "prediction_scores"
+author: "Mads Cort Nielsen"
+date: "2023-11-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(tibble)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(forcats)
+library(patchwork)
+library(scales)
+```
+
+## BY LABEL {0,1}
+
+## MAPPY
+
+```{r}
+
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/label/mappy_base/mappy.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1, width = 0.01) +
+  theme_minimal()
+
+```
+
+## CNN
+
+```{r}
+
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/label/inception/ko59yma9.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+```
+
+### BY SAMPLE TYPE satellite, meta, host, provirus etc.
+
+## MAPPY
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/type/mappy_base/mappy.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+```
+
+## CNN
+
+
+```{r}
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/type/inception/ko59yma9.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+```
+
+# ONLY TRUE LABELS BY TAX FAMILY
+
+## MAPPY
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/taxfamily/mappy_base/mappy.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+fact_lvls <- scores %>% 
+  group_by(pred_id) %>% 
+  summarise(n = n()) %>% 
+  arrange(n) %>% pull(pred_id)
+
+scores <- scores %>% 
+  mutate("pred_id" = factor(pred_id, levels = fact_lvls))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+
+
+```
+
+## CNN
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/taxfamily/inception/ko59yma9.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+fact_lvls <- scores %>% 
+  group_by(pred_id) %>% 
+  summarise(n = n()) %>% 
+  arrange(n) %>% pull(pred_id)
+
+scores <- scores %>% 
+  mutate("pred_id" = factor(pred_id, levels = fact_lvls))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+
+
+```
+# ONLY TRUE LABELS BY TAX SPECIES
+
+## MAPPY
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/taxspecies/mappy_base/mappy.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+fact_lvls <- scores %>% 
+  group_by(pred_id) %>% 
+  summarise(n = n()) %>% 
+  arrange(n) %>% pull(pred_id)
+
+scores <- scores %>% 
+  mutate("pred_id" = factor(pred_id, levels = fact_lvls))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+```
+
+
+## CNN
+
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/taxspecies/inception/ko59yma9.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+fact_lvls <- scores %>% 
+  group_by(pred_id) %>% 
+  summarise(n = n()) %>% 
+  arrange(n) %>% pull(pred_id)
+
+scores <- scores %>% 
+  mutate("pred_id" = factor(pred_id, levels = fact_lvls))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+```
+
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/label/inception/ko59yma9.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  filter(label == 0) %>% 
+  ggplot(aes(score, fill = label)) +
+  geom_density()
+
+```
+
+

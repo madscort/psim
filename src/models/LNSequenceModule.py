@@ -1,4 +1,5 @@
 import torch
+import sys
 import wandb
 import torch.nn as nn
 import pytorch_lightning as pl
@@ -70,7 +71,6 @@ class SequenceModule(pl.LightningModule):
         super().test_step()
         x, y = batch
         y_hat = self(x)
-        
         self.test_outputs.append({'y_true': y, 'y_hat': y_hat})
         return
 
@@ -104,12 +104,15 @@ class SequenceModule(pl.LightningModule):
         # log ROC curve in wandb
         y_true_np = y_true.numpy()
         y_hat_np = y_pred_prob.numpy()
+        
+        # log to wandb if experiment has attribute log:
+        if hasattr(self.logger.experiment, 'log'):
+            self.logger.experiment.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
 
-        self.logger.experiment.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
+            self.logger.experiment.log({"performance": wandb.Table(columns=["accuracy", "f1", "precision", "auc"],
+                        data=[[acc, f1, precision, auc]])})
 
-        self.logger.experiment.log({"performance": wandb.Table(columns=["accuracy", "f1", "precision", "auc"],
-                    data=[[acc, f1, precision, auc]])})
-
+        self.trainer.results = self.test_outputs
         del self.test_outputs
         return
 

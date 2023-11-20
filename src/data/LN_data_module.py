@@ -7,17 +7,18 @@ from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
 from src.data.get_sequence import get_gene_gc_sequence
+import torch.nn.functional as F
 
-
-
-def collate_fn_pad(batch):
-    if isinstance(batch[0][0], list):
-        batch = sorted(batch, key=lambda x: len(x[0]), reverse=True)
-    else:
-        batch = sorted(batch, key=lambda x: x[0].size(0), reverse=True)
+def collate_fn_pad(batch, pad_length=56):
     sequences, labels = zip(*batch)
-    lengths = [len(seq) for seq in sequences]
-    sequences_padded = pad_sequence(sequences, batch_first=True, padding_value=0)
+
+    for seq in sequences:
+        if len(seq) > pad_length:
+            raise ValueError(f"A sequence is longer than the maximum allowed length of {pad_length}")
+
+    # Pad sequences that are shorter than pad_length
+    sequences_padded = [F.pad(torch.tensor(seq), (0, max(0, pad_length - len(seq))), "constant", 0) for seq in sequences]
+    sequences_padded = torch.stack(sequences_padded, dim=0)
     
     labels = torch.stack(labels)
 
@@ -159,12 +160,28 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         normalized_class_weights = [w / weight_sum for w in class_weights]
         self.class_weights = torch.tensor(normalized_class_weights, dtype=torch.float)
         self.steps_per_epoch = (len(self.data_splits['train']['sequences']) + self.batch_size - 1) // self.batch_size
-    
+
+        if self.train_indices is not None:
+            self.resplit_data()
+
     def load_split_data(self, split):
         df = pd.read_csv(self.dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"])
         sequences = [self.dataset / split / "sequences" / f"{id}.fna" for id in df['id'].values]
         labels = torch.tensor(df['label'].values)
         return {'sequences': sequences, 'labels': labels}
+
+    def resplit_data(self):
+        data_sequences = []
+        data_labels = []
+        for split in ['train', 'val', 'test']:
+            data_sequences.extend(self.data_splits[split]['sequences'])
+            data_labels.extend(self.data_splits[split]['labels'])
+
+        self.data_splits = {
+            'train': {'sequences': [data_sequences[i] for i in self.train_indices], 'labels': [data_labels[i] for i in self.train_indices]},
+            'val': {'sequences': [data_sequences[i] for i in self.val_indices], 'labels': [data_labels[i] for i in self.val_indices]},
+            'test': {'sequences': [data_sequences[i] for i in self.test_indices], 'labels': [data_labels[i] for i in self.test_indices]}
+        }
 
     def train_dataloader(self):
         return DataLoader(self.DatasetType(self.data_splits['train']['sequences'], self.data_splits['train']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)
@@ -173,4 +190,4 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         return DataLoader(self.DatasetType(self.data_splits['val']['sequences'], self.data_splits['val']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)
 
     def test_dataloader(self):
-        return DataLoader(self.DatasetType(self.data_splits['test']['sequences'], self.data_splits['test']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)
+        return DataLoader(self.DatasetType(self.data_splits['test']['sequences'], self.data_splits['test']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)
