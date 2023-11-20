@@ -28,7 +28,6 @@ class BasicTransformer(nn.Module):
         )
         
     def forward(self, x):
-        x = x["seqs"]
         padding_mask = self.generate_padding_mask(x).t()
         x = self.embedding(x)
         x = self.pos_encoder(x)

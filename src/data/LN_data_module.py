@@ -21,7 +21,7 @@ def collate_fn_pad(batch):
     
     labels = torch.stack(labels)
 
-    return {"seqs": sequences_padded, "lengths": lengths}, labels
+    return sequences_padded, labels
 
 def encode_sequence(sequence, vocabulary_mapping):
     return [vocabulary_mapping[gene_name] for gene_name in sequence]
