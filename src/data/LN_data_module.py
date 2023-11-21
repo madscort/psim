@@ -7,22 +7,37 @@ from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
 from src.data.get_sequence import get_gene_gc_sequence
+from torch.nn import ConstantPad1d
 import torch.nn.functional as F
 
-def collate_fn_pad(batch, pad_length=56):
+# # 100 seqs of variable length (< max_len)
+# seq_lens = torch.randint(low=10,high=44,size=(100,))
+# seqs = [torch.rand(n) for n in seq_lens]
+
+# # pad first seq to desired length
+# seqs[0] = nn.ConstantPad1d((0, max_len - seqs[0].shape[0]), 0)(seqs[0])
+
+# # pad all seqs to desired length
+# seqs = pad_sequence(seqs)
+
+def collate_fn_pad(batch, max_len=56):
     sequences, labels = zip(*batch)
-
-    for seq in sequences:
-        if len(seq) > pad_length:
-            raise ValueError(f"A sequence is longer than the maximum allowed length of {pad_length}")
-
-    # Pad sequences that are shorter than pad_length
-    sequences_padded = [F.pad(torch.tensor(seq), (0, max(0, pad_length - len(seq))), "constant", 0) for seq in sequences]
-    sequences_padded = torch.stack(sequences_padded, dim=0)
-    
+    print(sequences)
+    padded_sequences = [ConstantPad1d((0, max(0, max_len - len(seq))), 0)(seq) for seq in sequences]
+    sequences_padded = pad_sequence(padded_sequences, batch_first=True)
+    print(sequences_padded)
     labels = torch.stack(labels)
 
     return sequences_padded, labels
+
+# def collate_fn_pad(batch, pad_len=56):
+#     sequences, labels = zip(*batch)
+#     print(sequences)
+#     sequences[0] = F.pad(sequences[0], (0, pad_len - sequences[0].shape[0]), value=0)
+#     sequences_padded = pad_sequence(sequences, batch_first=True, padding_value=0)
+    
+#     labels = torch.stack(labels)
+#     return sequences_padded, labels
 
 def encode_sequence(sequence, vocabulary_mapping):
     return [vocabulary_mapping[gene_name] for gene_name in sequence]
@@ -34,9 +49,6 @@ class SequenceDataset(Dataset):
     Instantiate with path to sequence and label file
     """
     def __init__(self, input_sequences, input_labels, vocab_map=None):
-        
-        # Init is run once, when instantiating the dataset class.
-        # It takes a list of labels and a list of paths to sequence files.
         self.labels = input_labels
         self.sequences_paths = input_sequences
         self.vocab_map = vocab_map
@@ -92,8 +104,13 @@ class HMMMatchSequenceDataset(SequenceDataset):
         # A sample includes:
         # - Sequence of HMM profile matches (for each gene)
         # - Label (binary)
+        
+        pad_len = 56
 
+        # Get sequence of HMM profile matches and pad
         encoded_sequences = torch.tensor(encode_sequence(self.sequences_paths[idx], self.vocab_map))
+        padding = pad_len - len(encoded_sequences)
+        encoded_sequences = F.pad(encoded_sequences, (0, padding), "constant", 0)
         # Load label
         label = self.labels[idx]
 
@@ -119,7 +136,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         self.vocab_map = None
         
         if pad_pack:
-            self.collate_fn = collate_fn_pad
+            self.collate_fn = None
         else:
             self.collate_fn = None
 
