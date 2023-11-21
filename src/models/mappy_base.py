@@ -11,6 +11,9 @@ from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
 
+def mapq2prob(quality_score):
+    return 10 ** (-quality_score / 10)
+
 # 2023-10-31 mads
 
 # This baseline model creates a minimap index of the positive training data
@@ -35,6 +38,8 @@ validation_root = Path("models/mappy_model")
 validation_root.mkdir(parents=True, exist_ok=True)
 iteration_root = Path(validation_root, version_id)
 iteration_root.mkdir(parents=True, exist_ok=True)
+
+raw_metrics_output = Path("data/visualization/performance/mappy_performance.tsv")
 
 # Load training test split
 
@@ -154,3 +159,9 @@ with open(Path(iteration_root, "result_metrics", "metrics.tsv"), "w") as f:
     print(f"Precision: {precision}", file = f)
     print(f"Recall: {recall}", file = f)
     print(f"F1: {f1}", file = f)
+
+# Save raw performance scores:
+with open(raw_metrics_output, "w") as fout:
+    for tru, pred, mapq in zip(max_labels, label_predict, max_scores):
+        prob = 1 - mapq2prob(mapq)
+        print(f"{tru}\t{pred}\t{prob}", file=fout)
