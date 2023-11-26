@@ -134,7 +134,7 @@ class SequenceModule(pl.LightningModule):
                 max_lr=self.lr, # The peak LR to achieve after warmup
                 epochs=self.trainer.max_epochs, # Total number of epochs
                 steps_per_epoch=self.steps_per_epoch, # Number of batches in one epoch
-                pct_start=0.1, # The percentage of the cycle spent increasing the LR
+                pct_start=0.20, # The percentage of the cycle spent increasing the LR
                 anneal_strategy='cos', # How to anneal the LR (options: 'cos' or 'linear')
                 final_div_factor=1e4, # The factor to reduce the LR at the end
             )
@@ -142,6 +142,7 @@ class SequenceModule(pl.LightningModule):
             scheduler = LambdaLR(optimizer, lambda epoch: 0.95 ** epoch)
 
         monitor = 'val_loss'
+        # return optimizer
         return {
                     'optimizer': optimizer,
                     'lr_scheduler': {

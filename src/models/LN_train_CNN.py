@@ -13,7 +13,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
 
-@hydra.main(config_path="../../configs", config_name="config", version_base="1.2")
+@hydra.main(config_path="../../configs", config_name="CNN_config", version_base="1.2")
 def main(cfg: DictConfig):
 
     seed_everything(1)
@@ -63,9 +63,7 @@ def main(cfg: DictConfig):
                       logger=wandb_logger,
                       callbacks=[LearningRateMonitor(logging_interval='step'),
                                  early_stop_callback,
-                                #  StochasticWeightAveraging(swa_lrs=1e-2)
-                                ]
-                                 )
+                                 StochasticWeightAveraging(swa_lrs=1e-2)])
     
     trainer.fit(model, datamodule=data_module)
 

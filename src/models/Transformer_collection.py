@@ -38,7 +38,7 @@ class BasicTransformer(nn.Module):
         return x
     
     def generate_padding_mask(self, x, pad_value=0):
-        return (x == pad_value).bool()
+        return (x == pad_value)
     
 
 class PositionalEncoding(nn.Module):
