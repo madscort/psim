@@ -14,16 +14,7 @@ import requests
 annotations = Path("data/visualization/profile_function/transformer/all_representatives.emapper.annotations.tsv")
 output_file = Path("data/visualization/profile_function/transformer/top_21_features_phage_annotations_cog_kegg_pfam.tsv")
 
-top_phage = [
-"IMGVR_UViG_2878445092_000002_30","IMGVR_UViG_2847235940_000003_11","IMGVR_UViG_2869822064_000003_9",
-"IMGVR_UViG_2869577513_000004_18","IMGVR_UViG_2791355158_000007_9",
-"SSRR4423633Ccontig151_17","SSRR2674234Ccontig439_10","IMGVR_UViG_2541047946_000016_14",
-"IMGVR_UViG_2718218150_000001_8","IMGVR_UViG_2548876993_000001_7","IMGVR_UViG_2847550744_000002_29",
-"IMGVR_UViG_2541047946_000016_9","IMGVR_UViG_2744054653_000001_39","IMGVR_UViG_2838840603_000004_29",
-"IMGVR_UViG_2636415848_000012_26","IMGVR_UViG_2846898933_000001_23","IMGVR_UViG_2724679539_000004_14",
-"IMGVR_UViG_2603880015_000004_25","IMGVR_UViG_2681812993_000002_32","IMGVR_UViG_2541047793_000001_36",
-"IMGVR_UViG_2671180952_000010_24", "IMGVR_UViG_2690316302_000001_15"
-]
+top_phage = []
 
 # Function to fetch KEGG pathway description
 def get_kegg_description(kegg_id):
@@ -64,14 +55,11 @@ with open(annotations, 'r') as fin, open(output_file, 'w') as fout:
         if line.startswith("#"):
             continue
         elements = line.strip().split("\t")
-        
-        #function = elements[20]
+
         name = elements[0].replace("|","_")
         if name.replace("|","_") not in top_phage:
             continue
 
-        # if len(name.split('_')) > 2:
-        #     name = "_".join(name.split("_")[0:2]) + "|" + name.split("|")[1]
         function = elements[7]
         if len(function.split()) > 15:
             function = " ".join(function.split(" ")[0:1])
@@ -93,9 +81,7 @@ with open(annotations, 'r') as fin, open(output_file, 'w') as fout:
             kegg_name = get_kegg_description(kegg)
         else:
             kegg_name = '-'
-        
-        #print(f"name: {name}", f"pfam: {' and '.join(pfam.strip().split(','))}", f"COG: {cog_name}", f"KEGG: {kegg_name}", sep="\t")
-        
+
         if cog_name == '-':
             if pfam == '-':
                 id = f"unknown"

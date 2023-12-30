@@ -70,13 +70,13 @@ def main():
                     sep="\t", file=fout)
 
             # Visualizing the normalized attributions
-            # plt.figure(figsize=(20, 5))
-            # plt.barh(proteins, attributions)
-            # plt.ylabel("Proteins")
-            # plt.xlabel("Attribution")
-            # plt.title("Integrated Gradients Attributions per Protein")
-            # plt.xticks(rotation=45)
-            # plt.show()
+            plt.figure(figsize=(20, 5))
+            plt.barh(proteins, attributions)
+            plt.ylabel("Proteins")
+            plt.xlabel("Attribution")
+            plt.title("Integrated Gradients Attributions per Protein")
+            plt.xticks(rotation=45)
+            plt.show()
 
 
 if __name__ == "__main__":

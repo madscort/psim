@@ -61,7 +61,6 @@ def main():
     X_val = scaler.transform(X_val)
     y_val = data_splits['test']['labels'].numpy()
 
-    #c_values = [2,1,0.5,0.25,0.1,0.075,0.05,0.025,0.01,0.0075,0.005,0.004,0.003,0.002,0.0015,0.001]
     c_values = [10]
     with open(outputfn, "w") as fout:
         for n, c in enumerate(c_values):
@@ -84,31 +83,31 @@ def main():
                        "f1": f1,
                        "roc_auc": roc_auc}
             
-            # for metric in metrics:
-            #     print(n,
-            #           c,
-            #           len(pos_coefficients),
-            #           len(neg_coefficients),
-            #           metric,
-            #           metrics[metric],
-            #           sep="\t",
-            #           file=fout)
+            for metric in metrics:
+                print(n,
+                      c,
+                      len(pos_coefficients),
+                      len(neg_coefficients),
+                      metric,
+                      metrics[metric],
+                      sep="\t",
+                      file=fout)
 
-            # out_fasta = out_f / f"c{c}_sequences.faa"
-            # feature_names = list(vocab_map.keys())
-            # feature_importance = dict(zip(feature_names, coefficients))
-            # sorted_features = sorted(feature_importance.items(), key=lambda x: abs(x[1]), reverse=True)
-            # with open(out_fasta, "w") as fasta:
-            #     for n, (feature, coef) in enumerate(sorted_features):
-            #         if coef == 0:
-            #             continue
-            #         else:
-            #             for seq_record in SeqIO.parse(in_fasta, "fasta"):
-            #                 if seq_record.id.replace('|','_') == feature:
-            #                     SeqIO.write(seq_record, fasta, "fasta")
-            #                     break
-            #             else:
-            #                 print(f"ERROR: {feature} not found in fasta file")
+            out_fasta = out_f / f"c{c}_sequences.faa"
+            feature_names = list(vocab_map.keys())
+            feature_importance = dict(zip(feature_names, coefficients))
+            sorted_features = sorted(feature_importance.items(), key=lambda x: abs(x[1]), reverse=True)
+            with open(out_fasta, "w") as fasta:
+                for n, (feature, coef) in enumerate(sorted_features):
+                    if coef == 0:
+                        continue
+                    else:
+                        for seq_record in SeqIO.parse(in_fasta, "fasta"):
+                            if seq_record.id.replace('|','_') == feature:
+                                SeqIO.write(seq_record, fasta, "fasta")
+                                break
+                        else:
+                            print(f"ERROR: {feature} not found in fasta file")
 
 if __name__ == "__main__":
     log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'

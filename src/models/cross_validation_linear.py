@@ -35,8 +35,10 @@ def calculate_means_and_cis_to_file(metrics_list, file_path):
     n = len(metrics_list)
     # Significance level for 95% confidence
     alpha = 0.05
+
     # Degrees of freedom
     df = n - 1
+    
     # Critical t value for two tails
     t_crit = abs(t.ppf(alpha/2, df))
 

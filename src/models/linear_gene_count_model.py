@@ -1,6 +1,9 @@
 import sys
 import numpy as np
 from torch import load as tload
+import torch
+import torch.nn.functional as F
+from torch.nn.functional import softmax
 from pathlib import Path
 from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score, recall_score
 from sklearn.linear_model import LogisticRegression
@@ -31,6 +34,7 @@ def main():
     version = "dataset_v02"
     dataset = dataset_root / version
     checkpoint = Path("models/transformer/alldb_v02_small_iak7l6eg.ckpt")
+    
     # Output
     output_root = Path("data/visualization/performance/linear/")
     outputfn = output_root / "logistic_alldb_v02.txt"
@@ -69,36 +73,6 @@ def main():
     print(f'Recall: {recall}')
     print(f'F1 Score: {f1}')
     print(f'ROC-AUC Score: {roc_auc}')
-
-
-    # for model_string, label in zip(data_splits['test']['sequences'], data_splits['test']['labels']):
-        
-    #     # Get sequence of HMM profile matches and pad
-    #     encoded_string = torch.tensor(encode_sequence(model_string, vocab_map))
-    #     padding = pad_len - len(encoded_string)
-    #     encoded_string = F.pad(encoded_string, (0, padding), "constant", 0)
-    #     sequence = encoded_string.unsqueeze(0)
-    #     prediction = model(sequence)
-    #     predictions.append(prediction)
-    #     y_true.append(label.item())
-    #     y_pred.append(prediction.argmax(dim=1).item())
-    #     y_prob.append(softmax(prediction, dim=1)[0][1].item())
-
-    # # calculate metrics
-    # acc = accuracy_score(y_true, y_pred)
-    # f1 = f1_score(y_true, y_pred, average='binary')
-    # precision = precision_score(y_true, y_pred, average='binary')
-    # auc = roc_auc_score(y_true, y_prob)
-
-
-    # print("Accuracy: ", acc)
-    # print("F1: ", f1)
-    # print("Precision: ", precision)
-    # print("AUC: ", auc)
-
-    # with open(outputfn, "w") as fout:
-    #     for tru, pred, prob, logits in zip(y_true, y_pred, y_prob, predictions):
-    #         print(f"{tru}\t{pred}\t{prob}\t{logits.squeeze()[0].item()}\t{logits.squeeze()[1].item()}", file=fout)
 
 if __name__ == "__main__":
     main()

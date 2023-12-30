@@ -35,6 +35,7 @@ test_table = Path(dataset) / "test.tsv"
 individual_train_sequences = Path(dataset) / "train" / "sequences"
 individual_test_sequences = Path(dataset) / "test" / "sequences"
 
+iteration_root = Path("data/vizualization/score_distribution/type/mappy_base/")
 tax = Path("data/processed/03_taxonomical_annotation/ps_tax_info.tsv")
 tax_df = pd.read_csv(tax, sep="\t", header=0, names=["id", "family", "genus", "species"])
 
@@ -115,43 +116,12 @@ with open(outfn, "w") as fout:
             elif pred_id.startswith("host"):
                 pred_id = "Host"
         
-        # Tax family
-
-        # Get the taxonomic family of the sequence.
-        # try:
-        #     pred_id = tax_df[tax_df["id"] == df_test["id"].values[sample_n]]["family"].values[0]
-        # except IndexError:
-        #     print(f"IndexError: {df_test['id'].values[sample_n]}")
-        #     continue
-
-        # Tax genus
-        # Get the taxonomic family of the sequence.
-        # try:
-        #     pred_id = tax_df[tax_df["id"] == df_test["id"].values[sample_n]]["genus"].values[0]
-        # except IndexError:
-        #     print(f"IndexError: {df_test['id'].values[sample_n]}")
-        #     continue
-
-        # Tax species
-
-        # try:
-        #     pred_id = tax_df[tax_df["id"] == df_test["id"].values[sample_n]]["species"].values[0]
-        # except IndexError:
-        #     print(f"IndexError: {df_test['id'].values[sample_n]}")
-        #     continue
-        
-        # if pred_tax in toptax:
-        #     pred_id = pred_tax
-        # else:
-        #     pred_id = "other"
-        
         print(pred_id,
               f"{prob:.4f}",
               int(label),
               sep="\t",
               file=fout)
 
-sys.exit()
 
 # Get roc curve with scikit learn
 fpr, tpr, thresholds = roc_curve(max_labels, max_scores)

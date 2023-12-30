@@ -35,10 +35,13 @@ def calculate_means_and_cis_to_file(metrics_list, file_path):
 
     # Number of observations (folds)
     n = len(metrics_list)
+
     # Significance level for 95% confidence
     alpha = 0.05
+
     # Degrees of freedom
     df = n - 1
+    
     # Critical t value for two tails
     t_crit = abs(t.ppf(alpha/2, df))
 
@@ -63,6 +66,7 @@ def custom_stratify(df, stratify_col, small_class_threshold=10):
 
     # Split large classes with stratification
     train_idx_large, test_idx_large = train_test_split(df_large.index, stratify=df_large[stratify_col], test_size=0.1, random_state=1)
+
     # Randomly split small classes
     train_idx_small, test_idx_small = train_test_split(df_small.index, test_size=0.1, random_state=1)
 
@@ -144,8 +148,9 @@ def main(cfg: DictConfig):
                 max_score = 0
                 match_id = None
                 for name, seq, qual in mp.fastx_read(str(sequence_path)):
+                    
                     # align sequence to index
-                    for hit in a.map(seq): # traverse alignments
+                    for hit in a.map(seq):
                         if hit.mapq > max_score:
                             max_score = hit.mapq
                             match_id = hit.ctg
@@ -168,26 +173,6 @@ def main(cfg: DictConfig):
         print(f"ROC AUC: {roc_auc}")
 
         fold_results.append({'test_acc': accuracy, 'test_f1': f1, 'test_precision': precision, 'test_recall': recall, 'test_auc': roc_auc})
-        
-        # Plot using matplotlib
-        # plt.figure()
-        # plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
-        # plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-        # plt.xlabel('False Positive Rate')
-        # plt.ylabel('True Positive Rate')
-        # plt.title('Receiver Operating Characteristic (ROC) Curve')
-        # plt.legend(loc="lower right")
-        # plt.show()
-
-        # y_hat = outputs[0]['y_hat'].cpu().numpy()
-        # y = outputs[0]['y'].cpu().numpy()
-
-        # # Save predictions and ground truth labels for this fold
-        # fold_results.append((y_hat, y))
-
-    # Save the results to disk
-    # with open(Path('data/visualization/cross_validation/cross_val_results.pkl').absolute(), 'wb') as f:
-    #     pickle.dump(fold_results, f)
 
     metrics = ['test_acc', 'test_f1', 'test_precision', 'test_auc', 'test_recall']
     with open(output_metrics_raw, "w") as fin:

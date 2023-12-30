@@ -169,15 +169,6 @@ def main():
                     if transformer:
                         encoded_string = torch.tensor(encode_sequence(model_string, vocab_map))
                         sequence = {"seqs": encoded_string.unsqueeze(0)}
-                    
-                    # print(encoded_string)
-                    # print("model_string", model_string)
-                    # print("protein_string", protein_string)
-                    # print("index", i)
-                    # print("current_index", current_index)
-                    # print("length_dna", length_dna)
-                    # print("length", len(protein_sequence))
-                    # print("contig", current_contig)
 
                     prediction = model(sequence)
                     if prediction.argmax(dim=1).tolist()[0] == 1:

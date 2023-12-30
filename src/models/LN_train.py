@@ -1,6 +1,5 @@
 import hydra
 import wandb
-import sys
 from pathlib import Path
 from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
@@ -27,6 +26,7 @@ def main(cfg: DictConfig):
                                             pad_pack=cfg.model.data.pad_pack,
                                             use_saved=cfg.model.data.use_saved)
     data_module.setup()
+    
     # Populate vocabulary size and max sequence length if used.
     if 'vocab_size' in cfg.model.params:
         cfg.model.params.vocab_size = data_module.vocab_size
