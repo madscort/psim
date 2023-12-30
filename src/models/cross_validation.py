@@ -14,25 +14,54 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split
 import pandas as pd
+import numpy as np
+from scipy.stats import t
 
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
 
-def custom_stratify(df, stratify_col, small_class_threshold=10):
-    # Identify small classes
-    small_classes = df[stratify_col].value_counts()[df[stratify_col].value_counts() < small_class_threshold].index
+rename = {'test_acc': 'accuracy_score', 'test_f1': 'f1_score', 'test_precision': 'precision_score', 'test_auc': 'roc_auc_score', 'test_recall': 'recall_score'}
 
-    # Separate small and large classes
+def calculate_means_and_cis_to_file(metrics_list, file_path):
+    # Initialize a dictionary to hold our aggregated metrics
+    aggregated_metrics = {}
+    
+    # Loop through each metric in the first fold to initialize the keys and lists
+    for key in metrics_list[0].keys():
+        aggregated_metrics[key] = []
+
+    # Now populate the lists with values from all folds
+    for metrics in metrics_list:
+        for key, value in metrics.items():
+            aggregated_metrics[key].append(value)
+
+    # Number of observations (folds)
+    n = len(metrics_list)
+    # Significance level for 95% confidence
+    alpha = 0.05
+    # Degrees of freedom
+    df = n - 1
+    # Critical t value for two tails
+    t_crit = abs(t.ppf(alpha/2, df))
+
+    # Calculate the mean and confidence intervals
+    with open(file_path, 'w') as fout:
+        for metric, values in aggregated_metrics.items():
+            mean_val = np.mean(values)
+            std_val = np.std(values, ddof=1)
+            ci_half_width = t_crit * (std_val / np.sqrt(n))
+            lower_ci = mean_val - ci_half_width
+            upper_ci = mean_val + ci_half_width
+            
+            print('Transformer', rename[metric], mean_val, lower_ci, upper_ci, sep='\t', file=fout)
+
+def custom_stratify(df, stratify_col, small_class_threshold=10):
+
+    small_classes = df[stratify_col].value_counts()[df[stratify_col].value_counts() < small_class_threshold].index
     df_small = df[df[stratify_col].isin(small_classes)]
     df_large = df[~df[stratify_col].isin(small_classes)]
-
-    # Split large classes with stratification
     train_idx_large, test_idx_large = train_test_split(df_large.index, stratify=df_large[stratify_col], test_size=0.1, random_state=1)
-
-    # Randomly split small classes
     train_idx_small, test_idx_small = train_test_split(df_small.index, test_size=0.1, random_state=1)
-
-    # Combine indices
     train_idx = train_idx_large.union(train_idx_small)
     test_idx = test_idx_large.union(test_idx_small)
 
@@ -42,21 +71,22 @@ def custom_stratify(df, stratify_col, small_class_threshold=10):
 def main(cfg: DictConfig):
     seed_everything(1)
 
-
+    output_metrics = Path("data/visualization/performance/v02/confidence/cross_transformer.tsv")
+    output_metrics_raw = Path("data/visualization/performance/v02/confidence/cross_transformer_raw.tsv")
+    output_metrics.parent.mkdir(parents=True, exist_ok=True)
     dataset_root = Path("data/processed/10_datasets/")
     dataset = Path(dataset_root, cfg.dataset)
     sampletables = [pd.read_csv(dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"]) for split in ['train', 'val', 'test']]
     df_sampletable = pd.concat(sampletables, ignore_index=True)
 
-    # Initialize the StratifiedKFold object
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=1)
 
     fold_results = []
 
     for fold, (fit_idx, test_idx) in enumerate(skf.split(df_sampletable['id'], df_sampletable['type'])):
         print(f"Fold {fold}")
-        # Split the training data into training and validation sets
-
+        if fold == 2:
+            break
         train_idx, val_idx = custom_stratify(df_sampletable.iloc[fit_idx], 'type')
 
         
@@ -117,18 +147,16 @@ def main(cfg: DictConfig):
         trainer.fit(model, datamodule=data_module)
 
         outputs = trainer.test(ckpt_path="best", datamodule=data_module)
-        
-        print(outputs)
-        # y_hat = outputs[0]['y_hat'].cpu().numpy()
-        # y = outputs[0]['y'].cpu().numpy()
-
-        # # Save predictions and ground truth labels for this fold
-        # fold_results.append((y_hat, y))
+        fold_results.append(outputs[0])
         wandb.finish()
-
-    # Save the results to disk
-    # with open(Path('data/visualization/cross_validation/cross_val_results.pkl').absolute(), 'wb') as f:
-    #     pickle.dump(fold_results, f)
+    
+    metrics = ['test_acc', 'test_f1', 'test_precision', 'test_auc', 'test_recall']
+    with open(output_metrics_raw, "w") as fin:
+        for n, result in enumerate(fold_results):
+            for metric in metrics:
+                print(f"Transformer_{n}\t{rename[metric]}\t{result[metric]}", file=fin)
+        
+    calculate_means_and_cis_to_file(fold_results, output_metrics)
 
 if __name__ == "__main__":
     main()

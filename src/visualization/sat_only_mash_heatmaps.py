@@ -24,26 +24,57 @@ def mash(input_fasta: Path, sketchDB: Path):
 # Run each sample against the database
 
 # First get X random sequences from sampletable:
-dataset = Path("data/processed/10_datasets/dataset_v01")
+dataset = Path("data/processed/10_datasets/dataset_v02")
 sampletable = dataset / "test.tsv"
 
 # Just take satellite test sequeneces
 df_sampletable = pd.read_csv(sampletable, sep="\t", header=0, names=['id', 'type', 'label'])
-df_ps = df_sampletable.loc[df_sampletable['label'] == 1]['id'].values.tolist()
+df_ps = df_sampletable['id'].values.tolist()
 
 ps_seqs = [dataset / "test" / "sequences" / f"{seq}.fna" for seq in df_ps]
+filtered_ps_seqs = []
+host_count = 0
+provirus_count = 0
+satellite_count = 0
+metagenome_count = 0
+
+for seq in ps_seqs:
+    if str(seq.stem).startswith("IMGVR"):
+        if provirus_count > 100:
+            continue
+        else:
+            filtered_ps_seqs.append(seq)
+        provirus_count += 1
+    elif str(seq.stem).startswith("PS"):
+        if satellite_count > 100:
+            continue
+        else:
+            filtered_ps_seqs.append(seq)
+        satellite_count += 1
+    elif str(seq.stem).startswith("N") or str(seq.stem).startswith("D") or str(seq.stem).startswith("C"):
+        if host_count > 100:
+            continue
+        else:
+            filtered_ps_seqs.append(seq)
+        host_count += 1
+    elif str(seq.stem).startswith("S"):
+        if metagenome_count > 100:
+            continue
+        else:
+            filtered_ps_seqs.append(seq)
+        metagenome_count += 1
 
 # Sketch ps_seqs and save to tmp dir:
 
-mashout = Path("data/visualization/mash_map/mash_dist_ps_only.tsv")
+mashout = Path("data/visualization/mash_map/mash_dist_all_AND_all.tsv")
 mashout.parent.mkdir(parents=True, exist_ok=True)
 
 with TemporaryDirectory() as tmp:
-    sketch_file = sketch(ps_seqs, Path(tmp) / "sketchDB")
+    sketch_file = sketch(filtered_ps_seqs, Path(tmp) / "sketchDB")
     # Run each sample against the database
     compared = set()
     with open(mashout, "w") as f:
-        for seq in ps_seqs:
+        for seq in filtered_ps_seqs:
             mash_result = mash(seq, sketch_file).split("\n")
             for line in mash_result:
                 if line == "":
@@ -54,7 +85,16 @@ with TemporaryDirectory() as tmp:
                 dist = item[2]
                 if var1 in compared:
                     continue
-                type = df_sampletable.loc[df_sampletable['id'] == var1]['type'].values[0]
-                print(f"{var1}\t{var2}\t{dist}\t{type}", file=f)
+                #type = df_sampletable.loc[df_sampletable['id'] == var1]['type'].values[0]
+                origin = "unknown"
+                if var1.startswith("IMGVR"):
+                    origin = "provirus"
+                elif var1.startswith("PS"):
+                    origin = "satellite"
+                elif var1.startswith("N") or var1.startswith("D") or var1.startswith("C"):
+                    origin = "host"
+                elif var1.startswith("S"):
+                    origin = "metagenome"
+                print(f"{var1}\t{var2}\t{dist}\t{origin}", file=f)
             compared.add(seq)
         

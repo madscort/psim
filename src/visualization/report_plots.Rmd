@@ -1,0 +1,1941 @@
+---
+title: "report_plots"
+author: "Mads Cort Nielsen"
+date: "2023-11-23"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(forcats)
+library(patchwork)
+library(scales)
+library(tidyr)
+library(dplyr)
+library(tibble)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(gt)
+library(viridis)
+colors <- thematic::okabe_ito(10)[-4]
+```
+
+
+
+# Build dataset
+
+## Genecount distribution of satellite types. PLOT 1 part 1/2
+
+```{r}
+colors <- thematic::okabe_ito(10)
+gene_counts <- 
+  read_delim("./../../data/visualization/gene_counts/raw_satellite_gene_counts.tsv",
+             col_names = c('id','count','type','origin')) %>%
+  mutate('type' = str_replace(type, 'CFPICI','cfPICI')) %>% 
+  mutate('type' = str_replace(type, 'SAPI','SaPI')) %>% 
+  mutate('type' = str_replace(type, 'PHAGE_SATELLITE','Satellite')) %>% 
+  mutate('type' = str_replace(type, 'G_NEG_PICI','G-neg PICI')) %>% 
+  mutate('type' = factor(type, levels=c('P4',
+                                        'PLE',
+                                        'cfPICI',
+                                        'PICI',
+                                        'G-neg PICI',
+                                        'SaPI',
+                                        'Satellite')))
+  
+
+gc_plot <- gene_counts %>% 
+  ggplot(aes(y=count, x=type, fill=origin)) +
+  geom_boxplot() +
+  coord_flip() +
+  scale_fill_manual(values = colors,
+                    name = 'DB origin') +
+  scale_color_manual(values = colors) +
+  theme_bw() +
+  labs(x = "Sequnce type", y = "Gene count") +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+  
+
+
+
+```
+
+
+
+## Satellite type distribution. PLOT 1 part 2/2 - plot and save
+```{r}
+# Non-equal size satellite type distribution, proportions before/after
+
+sampletable <- 
+  read_delim("./../../data/visualization/sample_type_dist_v02/sample_raw_dist.tsv",
+             col_names = c("id","contig_type","label","time")) %>%
+  mutate('contig_type' = str_replace(contig_type, 'CFPICI','cfPICI')) %>% 
+  mutate('contig_type' = str_replace(contig_type, 'SAPI','SaPI')) %>% 
+  mutate('contig_type' = str_replace(contig_type, 'PHAGE_SATELLITE','Satellite')) %>% 
+  mutate('contig_type' = str_replace(contig_type, 'G_NEG_PICI','G-neg PICI')) %>% 
+  mutate("contig_type" = factor(contig_type, levels = unique(contig_type))) %>% 
+  mutate('contig_type' = factor(contig_type, levels=c('P4',
+                                        'PLE',
+                                        'cfPICI',
+                                        'PICI',
+                                        'G-neg PICI',
+                                        'SaPI',
+                                        'Satellite'))) %>% 
+  mutate('time' = str_to_sentence(time)) %>% 
+  mutate('time' = factor(time, levels = c('Before', 'After')))
+
+
+sat_tp_plot <- sampletable %>%
+  filter(label == 1) %>% 
+  ggplot(aes(x=contig_type, fill=time)) +
+  geom_bar(aes(y = ..prop.., group = time),position = position_dodge()) +
+  coord_flip() +
+  scale_fill_manual(values = c(colors[5],'grey'),
+                    name = element_blank()) +
+  labs(x = "Satellite type", y = "Proportion") +
+  theme_bw() +
+  theme(legend.position = 'bottom',
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.ticks.y = element_blank(),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+  
+
+gc_plot + sat_tp_plot + plot_layout()
+
+ggsave('./../../reports/figures/gcount_type.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+
+```
+## Heatmap of satellite sequences
+```{r}
+### Satellite mash distances WITHOUT flanking region
+
+colors <- thematic::okabe_ito(10)
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+
+dist <- read_delim("./../../data/visualization/mash_map/mash_dist_ps_only_AND_ps_only.tsv",
+                   col_names = c("var1","var2","distance", "contig_type")) %>%
+  mutate('contig_type' = str_replace(contig_type, 'CFPICI','cfPICI')) %>% 
+  mutate('contig_type' = str_replace(contig_type, 'SAPI','SaPI')) %>% 
+  mutate('contig_type' = str_replace(contig_type, 'PHAGE_SATELLITE','Satellite')) %>% 
+  mutate('contig_type' = str_replace(contig_type, 'G_NEG_PICI','G-neg PICI')) %>% 
+  mutate("contig_type" = factor(contig_type, levels = unique(contig_type))) %>% 
+  mutate("var1" = factor(var1, levels = unique(var1)[order(contig_type)])) %>% 
+  mutate("var2" = factor(var2, levels = unique(var2)[order(contig_type)]))
+
+color_strip_data_var2 <- dist %>%
+  select(var2, contig_type) %>%
+  distinct() %>%
+  arrange(var2, contig_type)
+
+p2 <- dist %>% 
+  ggplot(aes(x = var1, y = var2, fill = distance)) +
+  geom_tile(width=1) +
+  scale_color_manual(values = colors) +
+  scale_fill_viridis(option='inferno',
+                     direction=-1,
+                       name = 'Mash dist',
+                       breaks = c(0, 1),
+                       labels = c(0, 1)) +
+  theme_minimal() +
+  theme(
+    #legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.background = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(0, 0, 0, 0, "pt")
+  )
+
+# Colorbar plot
+p3 <- ggplot(dist, aes(x = var1, y = 1, fill = contig_type)) +
+  geom_tile() +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  scale_fill_manual(values = colors) +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank(),
+        plot.margin = margin(0, 0, 0, 0, "pt")) +
+  guides(fill = guide_legend(ncol = 7))
+
+p1 <- ggplot(dist, aes(x = 1, y = var1, fill = contig_type)) +
+  geom_tile() +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  scale_fill_manual(values = colors) +
+  theme(legend.position = "none",
+        plot.margin = margin(0, 0, 0, 0, "pt"))
+
+p1 + p2 + plot_spacer() + plot_spacer() + p3 + plot_layout(ncol = 3,
+                                   widths = c(1, 10),
+                                   heights = c(10, 1))
+
+ggsave('./../../reports/figures/satellite_heat_w_legend.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+```
+
+## Heatmap of sequence types
+```{r}
+colors <- thematic::okabe_ito(10)[-4]
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+
+
+dist <- read_delim("./../../data/visualization/mash_map/mash_dist_all_AND_all.tsv",
+                   col_names = c("var1","var2","distance", "contig_type")) %>% 
+  mutate("contig_type" = factor(contig_type, levels = unique(contig_type))) %>% 
+  mutate("var1" = factor(var1, levels = unique(var1)[order(contig_type)])) %>% 
+  mutate("var2" = factor(var2, levels = unique(var2)[order(contig_type)])) %>% 
+  mutate("contig_type" = str_replace(contig_type, 'provirus', 'prophage')) %>% 
+  mutate("contig_type" = str_replace(contig_type, 'metagenome', 'metagenomic')) %>% 
+  mutate('contig_type' = str_to_sentence(contig_type))
+
+color_strip_data_var2 <- dist %>%
+  select(var2, contig_type) %>%
+  distinct() %>%
+  arrange(var2, contig_type)
+
+p2 <- dist %>% 
+  ggplot(aes(x = var1, y = var2, fill = distance)) +
+  geom_tile(width=1) +
+  scale_color_manual(values = colors) +
+  scale_fill_viridis(option='inferno',
+                     direction=-1,
+                       name = 'Mash dist',
+                       breaks = c(0, 1),
+                       labels = c(0, 1)) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(0, 0, 0, 0, "pt")
+  )
+
+# Colorbar plot
+p3 <- ggplot(dist, aes(x = var1, y = 1, fill = contig_type)) +
+  geom_tile() +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  scale_fill_manual(values = colors) +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank(),
+        plot.margin = margin(0, 0, 0, 0, "pt"))
+
+p1 <- ggplot(dist, aes(x = 1, y = var1, fill = contig_type)) +
+  geom_tile() +
+  coord_fixed(ratio = 1) +
+  theme_void() +
+  scale_fill_manual(values = colors) +
+  theme(legend.position = "none",
+        plot.margin = margin(0, 0, 0, 0, "pt"))
+
+p1 + p2 + plot_spacer() + plot_spacer() + p3 + plot_layout(ncol = 3,
+                                   widths = c(1, 10),
+                                   heights = c(10, 1))
+
+ggsave('./../../reports/figures/sequence_heat_wo_legend.pdf', width = 5,   height = 5, device = cairo_pdf)
+
+```
+
+## Barplot genus distribution of satellite (host)
+
+
+```{r}
+colors <- thematic::okabe_ito(10)
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+
+# Read the data
+sampletable <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_family_type_dist.tsv",
+                          col_names = c("id","sample_type","label","genus")) %>%
+  mutate(sample_type = factor(sample_type))
+
+# Calculate the total count for each genus
+total_counts <- sampletable %>%
+  group_by(genus) %>%
+  summarise(total_count = n()) %>% 
+  filter(total_count>10)
+
+# Join the total counts back to the original data
+sampletable <- sampletable %>%
+  left_join(total_counts, by = "genus")
+
+# Continue with your existing data manipulation and filtering
+plot_data <- sampletable %>%
+  filter(label == 1) %>%
+  group_by(sample_type, genus, total_count) %>% 
+  summarise(count = n(), .groups = 'drop') %>% 
+  filter(total_count > 20)
+
+# Plot with ordering based on total counts
+ggplot(plot_data, aes(x=reorder(genus, desc(-total_count)), y=count, fill=sample_type)) +
+  geom_col() +
+  coord_flip() +
+  theme_bw() +
+  labs(x = "Genus", y = "Count") + 
+  scale_fill_manual(values = colors,
+                    name = 'Satellite type') +
+  theme(legend.position = 'bottom') +
+  guides(fill = guide_legend(ncol = 7))
+  
+  
+```
+
+
+## Barplot genus distribution of satellite, (host) and provirus 
+### PLOT 3 1/2
+
+
+```{r}
+
+colors <- thematic::okabe_ito(10)
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+
+# Read the data
+sampletable <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_genus_type_dist.tsv",
+                          col_names = c("id","sample_type","label","genus")) %>%
+  mutate('sample_type' = str_replace(sample_type, 'CFPICI','cfPICI')) %>% 
+  mutate('sample_type' = str_replace(sample_type, 'SAPI','SaPI')) %>% 
+  mutate('sample_type' = str_replace(sample_type, 'PHAGE_SATELLITE','Satellite')) %>% 
+  mutate('sample_type' = str_replace(sample_type, 'G_NEG_PICI','G-neg PICI')) %>% 
+  mutate(sample_type = factor(sample_type))
+
+# Calculate the total count for each genus
+total_counts <- sampletable %>%
+  group_by(genus) %>%
+  summarise(total_count = n()) %>% 
+  filter(total_count>10)
+
+# Join the total counts back to the original data
+sampletable <- sampletable %>%
+  left_join(total_counts, by = "genus")
+
+# Continue with your existing data manipulation and filtering
+plot_data <- sampletable %>%
+  filter(label == 1) %>%
+  group_by(sample_type, genus, total_count) %>% 
+  summarise(count = n(), .groups = 'drop') %>% 
+  filter(total_count > 10)
+
+# Plot with ordering based on total counts
+genus_dist_plot <- ggplot(plot_data, aes(x=reorder(genus, desc(-total_count)), y=count, fill=sample_type)) +
+  geom_col() +
+  coord_flip() +
+  theme_bw() +
+  labs(x = "", y = "Count") + 
+  scale_fill_manual(values = colors,
+                    name = 'Satellite type') +
+  theme(legend.position = "bottom",
+        legend.justification = "left",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.text.x = element_text(size = 10)) +
+  guides(fill = guide_legend(nrow = 2))
+
+genus_dist_plot 
+ggsave('./../../reports/figures/genus_dist_only.pdf', width = 5,   height = 5, device = cairo_pdf)
+
+```
+
+#### GENUS AND SPECIES COUNT
+### PLOT 3 2/2
+```{r}
+
+colors <- thematic::okabe_ito(10)[-4]
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+
+# Read the data
+sampletable_genus <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_genus_type_dist.tsv",
+                                col_names = c("id","sample_type","label","genus")) %>%
+  mutate('sample_type' = str_replace(sample_type, 'CFPICI','cfPICI')) %>% 
+  mutate('sample_type' = str_replace(sample_type, 'SAPI','SaPI')) %>% 
+  mutate('sample_type' = str_replace(sample_type, 'PHAGE_SATELLITE','Satellite')) %>% 
+  mutate('sample_type' = str_replace(sample_type, 'G_NEG_PICI','G-neg PICI'))
+sampletable_species <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_species_type_dist.tsv",
+                                col_names = c("id","sample_type","label","species")) %>%
+  mutate('sample_type' = str_replace(sample_type, 'CFPICI','cfPICI')) %>% 
+  mutate('sample_type' = str_replace(sample_type, 'SAPI','SaPI')) %>% 
+  mutate('sample_type' = str_replace(sample_type, 'PHAGE_SATELLITE','Satellite')) %>% 
+  mutate('sample_type' = str_replace(sample_type, 'G_NEG_PICI','G-neg PICI'))
+
+# Calculate the total count for each sample_type across all genera
+total_genus <- sampletable_genus %>%
+  group_by(sample_type) %>%
+  summarise(genus_count =  n_distinct(genus))
+
+total_species <- sampletable_species %>%
+  group_by(sample_type) %>%
+  summarise(species_count =  n_distinct(species))
+
+# Join the total counts back to the original data
+table_joined <- total_genus %>%
+  left_join(total_species, by = "sample_type")
+
+table_joined <- 
+  table_joined %>% 
+  pivot_longer(cols = c('genus_count','species_count'), names_to = 'tax', values_to = 'count')
+
+# Plot with ordering based on total counts of sample_type
+genus_count_plot <- table_joined %>%
+  ggplot(aes(x=reorder(sample_type,count), y=count, fill=tax)) +
+  geom_col(position = position_dodge()) +
+  coord_flip() +
+  theme_bw() +
+  labs(x = "", y = "Count") +
+  scale_fill_manual(values = c(colors[4],'grey'),
+                    name = element_blank(),
+                    labels = c('Genus',
+                               'Species')) +
+  theme(legend.position = 'bottom',
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.text.x = element_text(size = 10))
+
+genus_dist_plot + genus_count_plot
+
+ggsave('./../../reports/figures/genus_dist.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+
+
+```
+
+## MODELLING
+## CNN
+
+
+```{r}
+whost <- 
+  read_delim("./../../data/visualization/sliding_window/predictions.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+original <- 
+  read_delim("./../../data/visualization/sliding_window/predictions_original.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax))
+
+p1 <- original %>% 
+  filter(tax == "Escherichia coli") %>% 
+  mutate(tax = "Escherichia coli - Dataset without host sequences") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2")) +
+  theme_bw() +
+  theme(legend.position = "none",
+        legend.title =  element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = 'dotted'),
+    panel.grid.minor.y = element_line(linetype = 'dotted')) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+
+p2 <- whost %>% 
+  filter(tax == "Escherichia coli") %>% 
+  mutate(tax = "Escherichia coli - Dataset containing host sequences") %>% 
+  ggplot(aes(location, refid,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2"),
+                    labels = c('True negative',
+                               'False negative',
+                               'False positive',
+                               'True positive')) +
+  theme_bw() +
+  labs(x = "Prediction window location on chromosome") +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = 'dotted'),
+    panel.grid.minor.y = element_line(linetype = 'dotted')) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+
+ (p1 + p2) / (p3+plot_spacer()) + plot_layout(widths = c(10),
+                       heights = c(5))
+
+ p1 / p2 + plot_layout(widths = c(10),
+                       heights = c(5))
+
+ggsave('./../../reports/figures/zebra_e_coli.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+```
+
+
+
+
+```{r}
+
+colors <- thematic::okabe_ito()
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+"#E69F00" "#009E73" "#0072B2" "#CC79A7" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+prediction_wh <- 
+  read_delim("./../../data/visualization/sliding_window/predictions.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax)) %>% 
+  filter(tax %in% c("Aeromonas caviae",
+"Mycobacterium dioxanotrophicus",
+"Mycolicibacterium celeriflavum",
+"Kocuria palustris")) %>%
+  mutate('origin' = paste('+ host', refid))
+
+prediction_wo <- 
+  read_delim("./../../data/visualization/sliding_window/predictions_original.tsv",
+             col_names = c("location","refid","tax","truth","prediction","probability")) %>% 
+  mutate("truth" = factor(truth)) %>% 
+  mutate("prediction" = factor(prediction)) %>% 
+  mutate("tax" = factor(tax)) %>% 
+  filter(tax %in% c("Aeromonas caviae",
+"Mycobacterium dioxanotrophicus",
+"Mycolicibacterium celeriflavum",
+"Kocuria palustris")) %>%
+  mutate('origin' = paste('- host', refid))
+
+
+p3 <- prediction_wh %>% 
+  full_join(prediction_wo) %>% 
+  ggplot(aes(location, origin,
+             fill = interaction(truth,prediction))) +
+  geom_tile() +
+  scale_fill_manual(values = c("0.0" = "whitesmoke",
+                               "1.0" = "dodgerblue",
+                               "0.1" = "tomato2",
+                               "1.1" = "olivedrab2"),
+                    labels = c('True negative',
+                               'False negative',
+                               'False positive',
+                               'True positive')) +
+  theme_bw() +
+  labs(x = "Prediction window location on chromosome") +
+  theme(legend.position = "bottom",
+        legend.title =  element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_line(linetype = 'dotted'),
+    panel.grid.minor.y = element_line(linetype = 'dotted')) +
+  facet_wrap(~tax, scales = "free_y", nrow = length(unique(prediction$tax)))
+p3
+
+ggsave('./../../reports/figures/zebra_small.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+
+```
+
+
+
+```{r}
+# BOOTSTRAP + CROSS-VALIDATION BASED COMPARISON
+
+
+boot_strap_cnn_mappy <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/bootstrap_cnn_mappy.tsv",
+             col_names = c("model","metric","mean","lower", "upper")) %>% 
+  mutate('intype' = 'bootstrap')
+
+
+metric_table2 <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/bootstrap_cnn_mappy.tsv",
+             col_names = c("model","metric","mean","lower", "upper")) %>% 
+  mutate('mo' = 'CNN_cross') %>% 
+  mutate('vul' = mean) %>% 
+  select(c('metric','mo','vul'))
+
+metric_table_mappy_cross <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/cross_mappy.tsv",
+             col_names = c("model","metric","mean","lower", "upper")) %>% 
+  mutate('intype' = 'cross_validation')
+
+cross_validation_cnn_raw <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/cross_cnn_raw.tsv",
+             col_names = c("model","metric","mean")) %>% 
+  mutate('fold' = model) %>% 
+  mutate('val' = mean) %>% 
+  select(c('fold','metric','val'))
+
+cross_validation_mappy_raw <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/cross_mappy_raw.tsv",
+             col_names = c("model","metric","mean")) %>% 
+  mutate('fold' = model) %>% 
+  mutate('val' = mean) %>% 
+  select(c('fold','metric','val'))
+
+
+metric_table_cnn_cross <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/cross_cnn.tsv",
+             col_names = c("model","metric","mean","lower", "upper")) %>% 
+  mutate('intype' = 'cross_validation')
+
+colors <- thematic::okabe_ito(10)
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+colors <- c("#999999",'gray80')
+
+metric_table %>% 
+  full_join(metric_table_cnn_cross) %>% 
+  full_join(metric_table_mappy_cross) %>% 
+  ggplot(aes(x=metric, y=mean, color=model, shape=intype)) +
+  geom_point(position = position_dodge(0.5)) +
+  geom_errorbar(aes(ymin=lower,ymax=upper), position = position_dodge(0.5)) +
+  #geom_point(aes(y=vul, x=metric, color=mo)) +
+  coord_flip() +
+  theme_minimal()
+
+cnn_cross <- cross_validation_cnn_raw %>% 
+  mutate('model' = 'CNN')
+
+mappy_cross <-
+  cross_validation_mappy_raw %>% 
+  mutate('model' = 'Baseline')
+
+cross <- cnn_cross %>% 
+  full_join(mappy_cross)
+
+boot_strap_cnn_mappy %>% 
+  #full_join(cross_validation_cnn_raw) %>% 
+  #full_join(metric_table_linear_cross) %>% 
+  left_join(cross, by = c('model','metric')) %>% 
+  #left_join(mappy_cross, by = c('model','metric')) %>% 
+  mutate(metric = str_replace(metric, 'accuracy_score', 'Accuracy')) %>% 
+  mutate(metric = str_replace(metric, 'f1_score', 'F1')) %>%
+  mutate(metric = str_replace(metric, 'precision_score', 'Precision')) %>%
+  mutate(metric = str_replace(metric, 'recall_score', 'Recall')) %>%
+  mutate(metric = str_replace(metric, 'roc_auc_score', 'ROC-AUC')) %>% 
+  ggplot(aes(x=metric, y=mean, fill=model, color=model)) +
+  geom_col(position = position_dodge(), color=NA) +
+  geom_errorbar(aes(ymin=lower, ymax=upper),
+                position = position_dodge(),
+                color = 'grey50'
+                ) +
+  geom_point(aes(y=val, x=metric, fill=model),
+             position = position_jitterdodge(jitter.width = 0.2),
+             color = 'salmon4',
+             show.legend = FALSE) +
+  #scale_fill_viridis(discrete = TRUE, option = 'rocket') +
+  scale_fill_manual(values = colors) +
+  #scale_color_manual(values = colors) +
+  labs(x="", y='Score') +
+  theme_bw() +
+  theme(legend.position = 'bottom',
+        legend.title = element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10))
+ggsave('./../../reports/figures/cnn_performance.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+
+```
+
+
+
+```{r}
+colors <- thematic::okabe_ito(10)
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/type/inception/24eamlea_version02.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label, levels = c(0,1))) %>% 
+  mutate('pred_id' = str_replace(pred_id, 'CFPICI','cfPICI')) %>% 
+  mutate('pred_id' = str_replace(pred_id, 'SAPI','SaPI')) %>% 
+  mutate('pred_id' = str_replace(pred_id, 'PHAGE_SATELLITE','Satellite')) %>% 
+  mutate('pred_id' = str_replace(pred_id, 'G_NEG_PICI','G-neg PICI')) %>% 
+  mutate('pred_id' = factor(pred_id, levels = unique(pred_id)))
+
+cnn_scores <- scores %>% 
+  #filter(pred_id != 'PLE') %>% 
+  ggplot(aes(x=score, y=fct_reorder(pred_id,label == 1), fill = label, color = label)) +
+  ggridges::geom_density_ridges(
+    jittered_points = TRUE,
+    position = ggridges::position_points_jitter(height = 0.1),
+    point_shape = '.',
+    point_size = 5,
+    point_alpha = 1,
+    point_color = 'gray30',
+    alpha = 0.7,
+    bandwidth = 0.02,
+    color = NA,
+    #rel_min_height = 0.0005,
+    ) +
+  theme_bw() +
+  scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors) +
+  labs(x = "Predicted probability", title = 'CNN-model') +
+  theme(legend.position = 'none',
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.ticks.y = element_blank(),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue")) +
+  scale_x_continuous(breaks=c(0.0,0.25,0.5,0.75,1.0))
+
+```
+
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/type/mappy_base/mappy_all_types.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label, levels = c(0,1))) %>% 
+  mutate('pred_id' = str_replace(pred_id, 'CFPICI','cfPICI')) %>% 
+  mutate('pred_id' = str_replace(pred_id, 'SAPI','SaPI')) %>% 
+  mutate('pred_id' = str_replace(pred_id, 'PHAGE_SATELLITE','Satellite')) %>% 
+  mutate('pred_id' = str_replace(pred_id, 'G_NEG_PICI','G-neg PICI')) %>% 
+  mutate('pred_id' = factor(pred_id, levels = unique(pred_id)))
+
+baseline_scores <- scores %>% 
+  #filter(pred_id != 'PLE') %>% 
+  ggplot(aes(x=score, y=fct_reorder(pred_id,label == 1), fill = label, color = label)) +
+  ggridges::geom_density_ridges(
+    jittered_points = TRUE,
+    position = ggridges::position_points_jitter(height = 0.1),
+    point_shape = '.',
+    point_size = 5,
+    point_alpha = 1,
+    point_color = 'gray30',
+    alpha = 0.7,
+    bandwidth = 0.02,
+    color = NA,
+    #rel_min_height = 0.0005,
+    ) +
+  theme_bw() +
+  scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors) +
+  labs(x = "Predicted probability", title = 'Alignment baseline') +
+  theme(legend.position = 'none',
+        axis.title.y = element_blank(),
+        axis.text.y = element_text(size = 10),
+        axis.text.x = element_text(size = 10),
+        axis.ticks.y = element_blank(),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue")) +
+  scale_x_continuous(breaks=c(0.0,0.25,0.5,0.75,1.0))
+
+baseline_scores + cnn_scores
+
+ggsave('./../../reports/figures/cnn_pred_scores.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+
+```
+
+
+
+
+
+
+
+```{r}
+feat_performance <-
+  read_delim("./../../data/visualization/performance/linear_feature_selection/logistic_alldb_v02_feature_selection.txt",
+             col_names = c('numb',
+                           'c_value',
+                           'neg_coef',
+                           'pos_coef',
+                           'metric',
+                           'metric_value')) %>% 
+  mutate("num_coef" = neg_coef+pos_coef)
+```
+
+```{r}
+feat_performance %>% 
+  filter(num_coef < 5000) %>% 
+  ggplot(aes(x=num_coef,y=metric_value,color=metric)) +
+  geom_point(size=1, show.legend = FALSE) +
+  geom_line(linewidth=1) +
+  theme_bw() +
+  scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors,
+                     labels = c('Accuracy', 'F1', 'Precision', 'Recall', 'ROC-AUC')) +
+  labs(x = 'Number of coefficients', y = 'Score') +
+  theme(axis.text.y = element_text(size = 12),
+        axis.text.x = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        legend.title = element_blank(),
+        text = element_text(family = "Helvetica Neue"))
+
+ggsave('./../../reports/figures/linear_feature_selection.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+```
+
+
+
+```{r}
+# BOOTSTRAP + CROSS-VALIDATION BASED COMPARISON TRANSFORMER+LINEAR
+bootstrap_transformer_linear <-
+    read_delim("./../../data/visualization/performance/v02/confidence/bootstrap_transformer_linear.tsv",
+             col_names = c("model","metric","mean","lower", "upper")) %>% 
+  mutate('intype' = 'bootstrap')
+
+metric_table_transformer_cross <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/cross_transformer.tsv",
+             col_names = c("model","metric","mean","lower", "upper")) %>% 
+  mutate('intype' = 'crossvalidation')
+
+metric_table_linear_cross <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/cross_linear.tsv",
+             col_names = c("model","metric","mean","lower", "upper")) %>% 
+  mutate('intype' = 'crossvalidation')
+
+bootstrap_transformer_linear %>% 
+  full_join(metric_table_transformer_cross) %>% 
+  full_join(metric_table_linear_cross) %>% 
+  ggplot(aes(x=metric, y=mean, color=model, shape=intype)) +
+  geom_point(position = position_dodge(0.5)) +
+  geom_errorbar(aes(ymin=lower,ymax=upper), position = position_dodge(0.5)) +
+  #geom_point(aes(y=vul, x=metric, color=mo)) +
+  coord_flip() +
+  theme_minimal()
+
+bootstrap_transformer_linear %>% 
+  full_join(metric_table_transformer_cross) %>% 
+  full_join(metric_table_linear_cross) %>% 
+  ggplot(aes(x=metric, y=mean, fill=model, color=model)) +
+  geom_col(position = position_dodge(), alpha = 0.8, color=NA) +
+  geom_errorbar(aes(ymin=lower,ymax=upper), position = position_dodge(), alpha = 1) +
+  scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors) +
+  theme_bw()
+
+
+cross_validation_transformer_raw <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/cross_transformer_raw.tsv",
+             col_names = c("model","metric","mean")) %>% 
+  mutate('fold' = model) %>% 
+  mutate('val' = mean) %>% 
+  select(c('fold','metric','val'))
+
+cross_validation_linear_raw <- 
+  read_delim("./../../data/visualization/performance/v02/confidence/cross_linear_raw.tsv",
+             col_names = c("model","metric","mean")) %>% 
+  mutate('fold' = model) %>% 
+  mutate('val' = mean) %>% 
+  select(c('fold','metric','val'))
+
+
+transformer_cross <- cross_validation_transformer_raw %>% 
+  mutate('model' = 'Transformer')
+
+linear_cross <-
+  cross_validation_linear_raw %>% 
+  mutate('model' = 'Baseline')
+
+cross_2 <- transformer_cross %>% 
+  full_join(linear_cross)
+
+
+colors <- thematic::okabe_ito(10)
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+colors <- c("#999999",'gray80')
+
+
+
+
+bootstrap_transformer_linear %>% 
+  left_join(cross_2, by = c('model','metric')) %>% 
+  mutate(metric = str_replace(metric, 'accuracy_score', 'Accuracy')) %>% 
+  mutate(metric = str_replace(metric, 'f1_score', 'F1')) %>%
+  mutate(metric = str_replace(metric, 'precision_score', 'Precision')) %>%
+  mutate(metric = str_replace(metric, 'recall_score', 'Recall')) %>%
+  mutate(metric = str_replace(metric, 'roc_auc_score', 'ROC-AUC')) %>% 
+  ggplot(aes(x=metric, y=mean, fill=model, color=model)) +
+  geom_col(position = position_dodge(), color=NA) +
+  geom_errorbar(aes(ymin=lower, ymax=upper),
+                position = position_dodge(),
+                color = 'grey50'
+                ) +
+  geom_point(aes(y=val, x=metric, fill=model),
+             position = position_jitterdodge(jitter.width = 0.2),
+             color = 'salmon4',
+             show.legend = FALSE) +
+  #scale_fill_viridis(discrete = TRUE, option = 'rocket') +
+  scale_fill_manual(values = colors) +
+  #scale_color_manual(values = colors) +
+  labs(x="", y='Score') +
+  theme_bw() +
+  theme(legend.position = 'bottom',
+        legend.title = element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10))
+
+ggsave('./../../reports/figures/transformer_performance.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+
+```
+
+
+
+
+
+```{r}
+markers <-
+  read_delim("./../../data/visualization/marker_gene_type_dist/v02/allDB.tsv",
+             col_names = c('split',
+                           'sample_id',
+                           'origin',
+                           'label',
+                           'seq_type',
+                           'seq_type_count')) %>% 
+  mutate('origin' = str_replace(origin, 'provirus', 'prophage')) %>%
+  mutate('origin' = str_replace(origin, 'metagenome', 'metagenomic')) %>%
+  mutate('origin' = str_to_sentence(origin))
+
+
+colors <- thematic::okabe_ito(10)[-4]
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+
+
+markers %>%
+  filter(split == 'test') %>% 
+  ggplot(aes(x=origin, y=seq_type_count, fill=seq_type)) +
+  geom_boxplot() +
+  theme_bw() +
+  labs(x = 'Sample category',
+       y = 'Count per sample') +
+  scale_fill_manual(values = colors,
+                    labels = c('Host',
+                               'Metagenomic',
+                               'Prophage',
+                               'Satellite',
+                               'No annotation'),
+                    name = 'Profile origin') +
+  scale_color_manual(values = colors)  +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+
+ggsave('./../../reports/figures/annotation_origin.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+
+```
+
+
+```{r}
+# Test difference in unknown...
+lm(seq_type_count~1, data=data)
+lm(seq_type_count~origin,data=data)
+anova(lm(seq_type_count~1, data=data),lm(seq_type_count~origin,data=data))
+kruskal.test(data$seq_type_count,data$origin)
+```
+
+
+
+```{r}
+# Get top 21 from the integrated gradients attributes
+ig <- 
+  read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_alldb_positive_v02.tsv",
+             col_names = c("protein","attribution", "origin")) %>%
+  drop_na()
+
+ig_count <- ig %>% 
+  mutate(attr_abs = abs(attribution)) %>%
+  group_by(protein) %>%
+  mutate(freq = n()) %>%
+  ungroup()
+
+transformer_top <- ig_count %>% 
+  group_by(protein,freq) %>%
+  summarise(
+    attr_sum = mean(attr_abs)) %>% 
+  mutate('freq_adj_attr' = (attr_sum*freq)/9912) %>% 
+  ungroup() %>% 
+  arrange(desc(freq_adj_attr)) %>%
+  slice(1:22) %>%
+  pull(protein)
+
+### This goes to python script.. Returns fasta -> goes to eggnog
+
+```
+
+
+```{r}
+eggnog_table_linear <- read_delim("./../../data/visualization/profile_function/linear_c_004_annotations_cog_kegg_pfam.tsv",
+             col_names = c('ProfileID',
+                           'COG',
+                           'KEGG',
+                           'PFAM'))
+
+eggnog_table_trans <- read_delim("./../../data/visualization/profile_function/transformer/top_21_features_freq_adj_annotations_cog_kegg_pfam.tsv",
+             col_names = c('ProfileID',
+                           'COG',
+                           'KEGG',
+                           'PFAM'))
+
+id_lin <- eggnog_table_linear %>% 
+  pull(ProfileID)
+
+id_trans <- eggnog_table_trans %>% 
+  pull(ProfileID)
+
+id_both <- intersect(id_lin,id_trans)
+
+
+
+egggt <- gt(eggnog_table_trans) %>% 
+  tab_options(
+    table.font.size = px(15), # Set font size to 10px
+    heading.title.font.size = px(15) # Set heading font size to 12px
+  ) %>% 
+  data_color(
+    columns = ProfileID, # specify the column to apply the coloring logic
+    rows = ProfileID %in% id_both,
+    domain = c(TRUE, FALSE)
+  )
+
+gtsave(egggt, "./../../data/visualization/profile_function/transformer/top_21_features_freq_adj_annotations.pdf")
+
+
+egggt <- gt(eggnog_table_linear) %>% 
+  tab_options(
+    table.font.size = px(15), # Set font size to 10px
+    heading.title.font.size = px(15) # Set heading font size to 12px
+  ) %>% 
+  data_color(
+    columns = ProfileID,
+    rows = ProfileID %in% id_both,
+    domain = c(TRUE, FALSE)
+  )
+
+gtsave(egggt, "./../../data/visualization/profile_function/linear_c_004_annotations_clean.pdf")
+
+### ONLY COMMON:
+
+egggt <- eggnog_table_linear %>% 
+  filter(ProfileID %in% id_both) %>% 
+  gt() %>% 
+  tab_options(
+    table.font.size = px(15), # Set font size to 10px
+    heading.title.font.size = px(15) # Set heading font size to 12px
+  )
+
+gtsave(egggt, "./../../data/visualization/profile_function/id_in_both.pdf")
+
+
+```
+
+```{r}
+
+egggttest <- gt(eggnog_table_linear) %>% 
+  tab_options(
+    table.font.size = px(11), # Set font size to 10px
+    heading.title.font.size = px(11) # Set heading font size to 12px
+  ) %>% tab_style(
+    style = cell_text(color = "blue", weight = "bold"),
+    locations = cells_body(
+      columns = ProfileID,
+      rows = ProfileID %in% id_both
+    )
+  )
+gtsave(egggttest, "./../../data/visualization/profile_function/linear_c_004_annotations_TEST.pdf")
+
+egggttest <- gt(eggnog_table_trans) %>% 
+  tab_options(
+    table.font.size = px(11), # Set font size to 10px
+    heading.title.font.size = px(11) # Set heading font size to 12px
+  ) %>% 
+  tab_style(
+    style = cell_text(color = "blue", weight = "bold"),
+    locations = cells_body(
+      columns = ProfileID,
+      rows = ProfileID %in% id_both
+    )
+  )
+
+gtsave(egggttest, "./../../data/visualization/profile_function/transformer/top_21_features_freq_adj_annotations_TEST.pdf")
+
+
+ data_color(
+    columns = ProfileID,
+    rows = ProfileID %in% id_both,
+    domain = c(TRUE, FALSE)
+  )
+```
+
+
+
+
+```{r}
+# Size distribution of protein clusters
+"./../../data/processed/10_datasets/v02/attachings_allDB/size_dist.tsv"
+
+profile_count <- read_delim("./../../data/visualization/profile_function/profile_counts.tsv",
+             col_names = c('split',
+                           'origin',
+                           'profile'))
+
+counts <- profile_count %>% 
+  group_by(profile) %>% 
+  summarise(n = n()) %>% 
+  arrange(desc(n)) %>% 
+  ungroup() %>% 
+  slice(1:100) %>% 
+  pull(profile)
+
+id_lin <- eggnog_table_linear %>% 
+  pull(ProfileID)
+
+id_trans <- eggnog_table_trans %>% 
+  pull(ProfileID)
+
+id_both <- intersect(id_lin,id_trans)
+
+length(id_both)
+length(id_lin)
+length(id_trans)
+length(intersect(counts,id_both))
+length(intersect(counts,id_lin))
+length(intersect(counts,id_trans))
+
+gt(eggnog_table_linear) %>% 
+  tab_options(
+    table.font.size = px(10), # Set font size to 10px
+    heading.title.font.size = px(12) # Set heading font size to 12px
+  ) %>% 
+  data_color(
+    columns = ProfileID,
+    rows = ProfileID %in% id_both,
+    domain = c(TRUE, FALSE)
+  ) %>% 
+  data_color(
+    columns = PFAM,
+    rows = ProfileID %in% counts,
+    domain = c(TRUE, FALSE)
+  )
+
+gt(eggnog_table_trans) %>% 
+  tab_options(
+    table.font.size = px(10), # Set font size to 10px
+    heading.title.font.size = px(12) # Set heading font size to 12px
+  ) %>% 
+  data_color(
+    columns = ProfileID,
+    rows = ProfileID %in% id_both,
+    domain = c(TRUE, FALSE)
+  ) %>% 
+  data_color(
+    columns = PFAM,
+    rows = ProfileID %in% counts,
+    domain = c(TRUE, FALSE)
+  )
+
+```
+
+
+```{r}
+
+
+ig <- 
+  read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_alldb_prophage_baseline_v02.tsv",
+             col_names = c("protein","attribution", "origin")) %>%
+  drop_na()
+
+anno <- read_delim("./../../data/visualization/profile_function/transformer/top_21_features_phage_annotations_cog_kegg_pfam.tsv",
+             col_names = c('protein',
+                           'CPFAM'))
+
+ig_count %>% 
+  group_by(protein) %>%
+  summarise(
+    attr_sum = mean(attr_abs),
+    freq_weighted_attr = attr_sum * freq / sum(freq)) %>% 
+  arrange(desc(freq_weighted_attr)) %>%
+  slice(1:21) %>%
+  select(protein)
+
+topp <- ig_count %>% 
+  filter(protein != '<PAD>') %>% 
+  group_by(protein,freq) %>%
+  summarise(
+    attr_sum = mean(attr_abs)) %>% 
+  mutate('newsum' = (attr_sum*freq)/9912) %>% 
+  ungroup() %>% 
+  arrange(desc(newsum)) %>%
+  slice(1:22) %>%
+  select(protein,newsum)
+
+colors <- thematic::okabe_ito(10)[-4]
+"#E69F00" "#009E73" "#0072B2" "#999999" "#D55E00" "#F0E442" "#56B4E9"
+colors <- c("grey40", "grey80")
+
+
+ig %>% 
+  filter(origin != 'unknown') %>% 
+  left_join(anno, by='protein') %>% 
+  inner_join(topp) %>% 
+  mutate('CPFAM' = str_replace(CPFAM, 'unknown', 'No annotation in eggNOG DB')) %>% 
+  arrange(desc(newsum)) %>% 
+  mutate('CPFAM' = factor(CPFAM, levels = rev(unique(.$CPFAM)))) %>%  
+  ggplot(aes(CPFAM, attribution, fill = origin)) + 
+  geom_boxplot() +
+  #geom_point() +
+  coord_flip() +
+  theme_bw() +
+  scale_fill_manual(values = colors,
+                    name = 'Origin',
+                    labels = c('Metagenomic', 'Prophage')) +
+  labs(y = 'Attribution score', x = '') +
+  theme(axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+
+ggsave('./../../reports/figures/prophage_attr.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+```
+
+
+
+```{r}
+bootstrap_all <-
+    read_delim("./../../data/visualization/performance/v02/confidence/bootstrap_all_models.tsv",
+             col_names = c("model","metric","mean","lower", "upper")) %>% 
+  mutate('intype' = 'bootstrap')
+
+
+colors <- thematic::okabe_ito(10)[-4]
+
+bootstrap_all %>% 
+  mutate(metric = str_replace(metric, 'accuracy_score', 'Accuracy')) %>% 
+  mutate(metric = str_replace(metric, 'f1_score', 'F1')) %>%
+  mutate(metric = str_replace(metric, 'precision_score', 'Precision')) %>%
+  mutate(metric = str_replace(metric, 'recall_score', 'Recall')) %>%
+  ggplot(aes(x=metric, y=mean, fill=model, color=model)) +
+  geom_col(position = position_dodge(), alpha = 0.8, color=NA) +
+  geom_errorbar(aes(ymin=lower,ymax=upper), position = position_dodge(), alpha = 1) +
+  scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors) +
+  theme_bw() +
+  labs(y = 'Score', x = '') +
+  theme(legend.position = 'bottom',
+        legend.title = element_blank(),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10))
+
+ggsave('./../../reports/figures/final_performance.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+
+```
+
+
+
+```{r}
+sapis_table <- read_delim("./../../data/visualization/validated_data/verified_sapis_prediction.tsv",
+             col_names = c('StrainID',
+                           'Transformer',
+                           'Satellitefinder'))
+
+# Reshape to long format
+long_sapis_table <- sapis_table %>%
+  pivot_longer(cols = -StrainID, names_to = "Model", values_to = "Value")
+
+# Reshape to wide format (effectively transposing the original table)
+wide_sapis_table <- long_sapis_table %>%
+  pivot_wider(names_from = StrainID, values_from = Value)
+
+
+egggt <- gt(sapis_table) %>% 
+  tab_options(
+    table.font.size = px(14), # Set font size to 10px
+    heading.title.font.size = px(15) # Set heading font size to 12px
+  )
+
+egggt <- gt(wide_sapis_table) %>% 
+  tab_options(
+    table.font.size = px(10), # Set font size to 14px
+    heading.title.font.size = px(11) # Set heading font size to 15px
+  )
+
+gtsave(egggt, "./../../reports/figures/verified_sapis.pdf")
+
+
+
+
+
+```
+
+
+
+
+```{r}
+metaset <- read_delim("./../../data/visualization/real_data/metasets/transformer/parsed_metaset.tsv",
+                      col_names = c('metaset',
+                                    'contig',
+                                    'count',
+                                    'prediction',
+                                    'family',
+                                    'genus',
+                                    'species'), delim = "\t")
+
+
+```
+```{r}
+###
+# Positive fraction per sample
+metaset %>% 
+  group_by(metaset, prediction) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = prediction, values_from = n) %>% 
+  mutate('positive_fraction' = positive/(positive+negative))
+
+metaset %>% 
+  group_by(metaset, prediction) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(y=n, x=metaset, fill=prediction)) +
+  geom_col() +
+  theme_minimal()
+
+```
+
+```{r}
+### Contig predictions per metaset
+metaset_intersect %>% 
+  filter(metaset == 'Skin') %>% 
+  filter(prediction == 'transformer')
+
+metaset_intersect <- 
+  read_delim("./../../data/visualization/real_data/metasets/parsed_metaset_intersect.tsv",
+                      col_names = c('metaset',
+                                    'contig',
+                                    'prediction',
+                                    'family',
+                                    'genus',
+                                    'species'),
+                      delim = "\t") %>% 
+  mutate('prediction' = factor(prediction, levels = c('negative','transformer','satellite_finder','both')))
+
+colors <- thematic::okabe_ito(10)
+
+metaset_intersect %>% 
+  group_by(metaset, prediction) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(y=n, x=metaset, fill=prediction)) +
+  geom_col() +
+  theme_minimal()
+
+metaset_intersect %>% 
+  #filter(prediction != 'negative') %>% 
+  group_by(metaset, prediction) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(y=n, x=metaset, fill=prediction)) +
+  geom_col(position = position_dodge()) +
+  scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors) +
+  theme_bw() +
+  coord_flip()
+
+colors <- thematic::okabe_ito(10)
+
+
+data_props <- metaset_intersect %>% 
+  #filter(prediction != 'negative') %>% 
+  group_by(metaset, prediction) %>% 
+  summarise(n = n()) %>%
+  ggplot(aes(y=n, x=metaset, fill=prediction)) +
+  geom_bar(position='fill', stat = 'identity') +
+  scale_fill_manual(values = colors,
+                    labels = c('None',
+                              'Transformer',
+                              'Satellite Finder',
+                              'Both'),
+                    name = '') +
+  scale_color_manual(values = colors) +
+  theme_bw() +
+  coord_flip() +
+  labs(x = "Dataset", y = "True prediction proportion of contigs") +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+  
+
+
+```
+
+
+
+```{r}
+###
+# Number of hits per positive contig
+
+metaset %>% 
+  filter(prediction == 'positive') %>% 
+  group_by(metaset) %>% 
+  summarise(sum = sum(count), n = n(), n_per_contig = sum/n)
+
+metaset %>% 
+  filter(prediction == 'positive') %>% 
+  group_by(metaset) %>% 
+  summarise(sum = sum(count), n = n(), n_per_contig = sum/n) %>% 
+  ggplot(aes(y=n_per_contig, x=metaset)) +
+  geom_col() +
+  theme_minimal()
+
+```
+
+```{r}
+###
+# Number of hits per positive contig
+
+metaset_2 <- read_delim("./../../data/visualization/real_data/metasets/parsed_metaset.tsv",
+                      col_names = c('model',
+                                    'metaset',
+                                    'contig',
+                                    'count',
+                                    'prediction',
+                                    'family',
+                                    'genus',
+                                    'species'), delim = "\t")
+colors <- thematic::okabe_ito(10)
+colors <- c("grey40", "grey80")
+
+
+metaset_2 %>% 
+  filter(prediction == 'positive') %>% 
+  group_by(metaset) %>% 
+  summarise(sum = sum(count), n = n(), n_per_contig = sum/n)
+
+metaset_2 %>% 
+  filter(prediction == 'positive') %>% 
+  group_by(metaset, model) %>% 
+  summarise(sum = sum(count), n = n(), n_per_contig = sum/n) %>% 
+  ggplot(aes(y=n_per_contig, x=metaset, fill=model)) +
+  geom_col(position = position_dodge()) +
+  scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors) +
+  theme_bw() +
+  coord_flip() +
+  labs(y = "Contig count") +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+
+data_props
+
+```
+
+
+```{r}
+### Total different genera per sample
+##
+
+metaset %>% 
+  filter(metaset == 'Rhizosphere') %>% 
+  distinct(genus)
+
+metaset %>%
+  group_by(metaset) %>% 
+  distinct(genus) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(x=metaset,y=n)) +
+  geom_col() +
+  theme_bw()
+
+```
+```{r}
+### Total different genera per sample
+##
+
+metaset_2 %>% 
+  filter(metaset == 'Rhizosphere') %>% 
+  distinct(genus)
+
+colors <- thematic::okabe_ito(10)
+colors <- c("grey40", "grey80")
+
+
+
+genera_count <- metaset_2 %>%
+  filter(model != 'background') %>% 
+  group_by(metaset,model) %>% 
+  distinct(genus) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(x=metaset,y=n, fill = model)) +
+  geom_col(position=position_dodge()) +
+  scale_fill_manual(values = colors,
+                    labels = c('Satellite Finder',
+                               'Transformer'),
+                    name = '') +
+  scale_color_manual(values = colors) +
+  theme_bw() +
+  coord_flip() +
+  theme_bw() +
+  coord_flip() +
+  labs(y = "Distinct genera count") +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+
+data_props + genera_count
+
+ggsave('./../../reports/figures/metaset_analysis.pdf', width = 10,   height = 5, device = cairo_pdf)
+
+
+```
+
+
+```{r}
+### Count per family
+##
+
+metaset_2 %>%
+  filter(family != 'unknown') %>% 
+  filter(model != 'background') %>% 
+  group_by(metaset, family, model) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 50) %>% 
+  ggplot(aes(y=family, x=n, fill=model)) +
+  geom_col() +
+  theme_bw() +
+  facet_wrap(~metaset, scales = "free_y", ncol=2, nrow = (length(unique(metaset))+1)/2)
+
+```
+
+
+```{r}
+### Count per family
+##
+
+sampletable <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_family_type_dist.tsv",
+                          col_names = c("id","sample_type","label","genus")) %>%
+  mutate(sample_type = factor(sample_type))
+
+metaset_2 %>%
+  filter(model != 'background') %>% 
+  filter(family != 'unknown') %>% 
+  group_by(metaset, family, model) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 50) %>% 
+  ggplot(aes(y=family, x=n, fill = model)) +
+  geom_col() +
+  theme_bw() +
+  facet_wrap(~metaset, scales = "free_y", ncol=2, nrow = (length(unique(metaset))+1)/2)
+
+known_family <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_family_type_dist.tsv",
+                          col_names = c("id","sample_type","label","family")) %>%
+  mutate(sample_type = factor(sample_type)) %>%
+  distinct(family) %>% 
+  select(family) %>% 
+  mutate('family' = str_replace(family, "_", " ")) %>% 
+  mutate('family' = str_to_sentence(family))
+
+metaset_2 %>%
+  anti_join(known_family, by = 'family') %>%
+  filter(family != 'unknown') %>% 
+  filter(model != 'background') %>% 
+  group_by(metaset, family, model) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 20) %>%
+  ggplot(aes(y=reorder(family,n), x=n, fill = model)) +
+  geom_col(position = position_dodge()) +
+  theme_bw() +
+  facet_wrap(~metaset, scales = "free_y", ncol=2, nrow = (length(unique(metaset))+1)/2)
+
+
+```
+
+```{r}
+metaset_intersect %>% 
+  filter(prediction == 'both') %>%
+  anti_join(known_family, by = 'family') %>% 
+  filter(family != 'unknown') %>% 
+  select(family) %>% 
+  distinct(family)
+```
+
+```{r}
+### Count per genera
+##
+
+metaset %>%
+  filter(genus != 'unknown') %>% 
+  group_by(metaset, genus) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 50) %>% 
+  ggplot(aes(y=genus, x=n)) +
+  geom_col(fill='#0072B2') +
+  theme_bw() +
+  facet_wrap(~metaset, scales = "free_y", ncol=2, nrow = (length(unique(metaset))+1)/2)
+
+```
+
+```{r}
+### Count per genera
+##
+
+colors <- thematic::okabe_ito(10)
+colors <- c("grey40", "grey80")
+
+metaset
+
+# Calculate the total count for each genus
+g_counts <- metaset_2 %>%
+  filter(genus != 'unknown') %>% 
+  filter(model != 'background') %>% 
+  group_by(genus) %>%
+  summarise(total_count = n()) %>% 
+  filter(total_count > 5)
+
+# Join the total counts back to the original data
+metaset_3 <- metaset_2 %>%
+  left_join(g_counts, by = "genus")
+
+# Continue with your existing data manipulation and filtering
+plot_data_2 <- metaset_3 %>%
+  filter(genus != 'unknown') %>% 
+  filter(model != 'background') %>% 
+  group_by(metaset, genus, model, total_count) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 5) %>% 
+  ungroup()
+
+
+
+# This will handle the ordering
+d <- d %>% 
+  ungroup() %>%   # As a precaution / handle in a separate .grouped_df method
+  arrange(f, y) %>%   # arrange by facet variables and continuous values
+  mutate(.r = row_number()) # Add a row number variable
+
+ggplot(d, aes(.r, y)) +  # Use .r instead of x
+  geom_col() +
+  facet_wrap(~ f, scales = "free") +  # Should free scales (though could be left to user)
+  scale_x_continuous(  # This handles replacement of .r for x
+    breaks = d$.r,     # notice need to reuse data frame
+    labels = d$x
+  )
+
+
+metaset_2 %>%
+  filter(genus != 'unknown') %>% 
+  filter(model != 'background') %>% 
+  group_by(metaset, genus, model) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 5) %>% 
+  ggplot(aes(y=reorder(genus,n), x=n, fill=model)) +
+  geom_col(position = position_dodge()) +
+  theme_bw() +
+  labs(x = 'Predicted satellite contigs') +
+  facet_wrap(~metaset, scales = "free_y", ncol=2, nrow = (length(unique(metaset))+1)/2) +
+  scale_fill_manual(values = c("grey35", "grey70"),
+                    labels = c('Satellite Finder','Transformer'),
+                    name = element_blank()) +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+
+
+plot_data_2 %>%
+  ggplot(aes(y=reorder(genus,total_count), x=n, fill=model)) +
+  geom_col(position = position_dodge()) +
+  theme_bw() +
+  labs(x = 'Predicted satellite contigs') +
+  facet_wrap(~metaset, scales = "free_y", ncol=2, nrow = (length(unique(metaset))+1)/2) +
+  scale_fill_manual(values = c("grey35", "grey70"),
+                    labels = c('Satellite Finder','Transformer'),
+                    name = element_blank()) +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+
+
+
+ggsave('./../../reports/figures/metaset_all_genera.pdf', width = 8,   height = 12, device = cairo_pdf)
+
+
+
+genus_order_metaset <- plot_data_2 %>% 
+  arrange(metaset,desc(n)) %>% 
+  pull(genus)
+
+
+  
+
+```
+
+```{r}
+### Count per genera
+##
+
+colors <- thematic::okabe_ito(10)
+colors <- c("grey40", "grey80")
+
+library(tidytext)
+
+plot_data_2 <- metaset_2 %>%
+  filter(genus != 'unknown') %>% 
+  filter(model != 'background') %>% 
+  group_by(metaset, genus, model) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 10) %>% 
+  ungroup()
+
+
+plot_data_2 %>%
+  mutate(metaset = factor(metaset),
+         genus = reorder_within(genus, n, metaset)) %>% 
+  ggplot(aes(x=genus, y=n, fill=model)) +
+  geom_col(position = position_dodge()) +
+  theme_bw() +
+  facet_wrap(~metaset, scales = "free_y", ncol=2, nrow = (length(unique(metaset))+1)/2) +
+  coord_flip() +
+  scale_x_reordered() +
+  labs(y = 'Predicted satellite contigs') +
+  scale_fill_manual(values = c("grey35", "grey70"),
+                    labels = c('Satellite Finder','Transformer'),
+                    name = element_blank()) +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+
+
+
+ggsave('./../../reports/figures/metaset_all_genera.pdf', width = 8,   height = 11, device = cairo_pdf)
+
+
+
+  
+
+```
+
+
+
+
+Total different soil bacteria:
+Actinomycetospora
+Actinoplanes
+Actinosynnema
+Algoriphagus
+Amycolatopsis
+Azospirillum
+Bacillus
+Catelliglobosispora
+Cellvibrio
+Chryseobacterium
+Deinococcus
+Devosia
+Effusibacillus
+Flavobacterium
+Nafulsella
+Nocardiopsis
+Paeniclostridium
+Paraburkholderia
+Solimonas
+
+
+```{r}
+### NEW genera per sampletype
+known_species <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_species_type_dist.tsv",
+                          col_names = c("id","sample_type","label","genus")) %>%
+  mutate(sample_type = factor(sample_type)) %>% 
+  distinct(genus) %>% 
+  select(genus) 
+
+known_genus <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_genus_type_dist.tsv",
+                          col_names = c("id","sample_type","label","genus")) %>%
+  mutate(sample_type = factor(sample_type)) %>% 
+  filter(sample_type == 'SAPI') %>% 
+  distinct(genus) %>% 
+  select(genus) 
+
+
+
+known_genus <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_genus_type_dist.tsv",
+                          col_names = c("id","sample_type","label","genus")) %>%
+  mutate(sample_type = factor(sample_type)) %>% 
+  distinct(genus) %>% 
+  select(genus) 
+
+known_genus %>% 
+  arrange(genus)
+
+known_genus_list <- 
+  known_genus %>% 
+  pull(genus)
+
+pred_genus_list <- metaset_2 %>%
+  filter(genus != 'unknown') %>% 
+  filter(model == 'transformer') %>% 
+  select(genus) %>% 
+  distinct(genus) %>% 
+  anti_join(known_genus, by = 'genus')
+  pull(genus)
+  
+all_genus_list <- metaset_2 %>%
+  select(genus) %>% 
+  distinct(genus) %>% 
+  pull(genus)
+
+
+metaset_2 %>%
+  anti_join(known_genus, by = 'genus') %>%
+  filter(genus != 'unknown') %>% 
+  filter(model != 'background') %>% 
+  filter(model == 'transformer') %>% 
+  select(genus) %>% 
+  distinct(genus) %>% 
+  pull(genus)
+
+union(pred_genus_list,antij)
+
+length(pred_genus_list)
+length(antij)
+length(intersect(antij,known_genus_list))
+length(intersect(pred_genus_list,known_genus_list))
+length(intersect(all_genus_list,known_genus_list))
+length(all_genus_list)
+colors <- thematic::okabe_ito()[-4]
+
+
+metaset_2 %>%
+  anti_join(known_genus, by = 'genus') %>%
+  filter(genus != 'unknown') %>% 
+  filter(model != 'background') %>% 
+  group_by(metaset, genus, model) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 5) %>%
+  ggplot(aes(y=reorder(genus,n), x=n, fill = model)) +
+  geom_col(position = position_dodge()) +
+  theme_bw() +
+  facet_wrap(~metaset, scales = "free_y", ncol=2, nrow = (length(unique(metaset))+1)/2)
+
+```
+
+```{r}
+known_species <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_species_type_dist.tsv",
+                          col_names = c("id","sample_type","label","species")) %>%
+  mutate(sample_type = factor(sample_type)) %>%
+  distinct(species) %>% 
+  select(species) %>% 
+  mutate('species' = str_replace(species, "_", " ")) %>% 
+  mutate('species' = str_to_sentence(species))
+
+metaset_2 %>%
+  anti_join(known_species, by = 'species') %>%
+  filter(species != 'unknown') %>% 
+  filter(model != 'background') %>% 
+  group_by(metaset, species, model) %>% 
+  summarise(n = n()) %>% 
+  filter(n > 20) %>%
+  ggplot(aes(y=reorder(species,n), x=n, fill = model)) +
+  geom_col(position = position_dodge()) +
+  theme_bw() +
+  labs(x = 'Predicted satellite contigs') +
+  facet_wrap(~metaset, scales = "free_y", ncol=2, nrow = (length(unique(metaset))+1)/2) +
+    scale_fill_manual(values = c("grey35", "grey70"),
+                    labels = c('Satellite Finder','Transformer'),
+                    name = element_blank()) +
+  theme(legend.position = 'bottom',
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.y = element_blank(),
+        legend.text = element_text(size = 10),
+        text = element_text(family = "Helvetica Neue"))
+
+
+ggsave('./../../reports/figures/metaset_new_species.pdf', width = 10,   height = 6, device = cairo_pdf)
+
+
+```
+
+
+
+```{r}
+
+# Calculate the total count for each genus
+total_counts <- 
+  metaset %>%
+  filter(metaset == 'Airways') %>%
+  group_by(genus) %>%
+  summarise(total_count = n())
+
+colors <- thematic::okabe_ito(20)[-2]
+
+
+metaset %>%
+  filter(metaset == 'Airways') %>% 
+  left_join(total_counts, by = "genus") %>% 
+  group_by(genus, prediction, total_count) %>% 
+  summarise(count = n(), .groups = 'drop') %>% 
+  filter(total_count > 10) %>% 
+  ggplot(aes(y=reorder(genus,total_count), x=count,fill=prediction)) +
+  geom_col() +
+  theme_bw() +
+  scale_fill_manual(values = colors)
+
+```
+

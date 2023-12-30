@@ -40,14 +40,11 @@ def main():
 
     
     for model_string, label in zip(data_splits['test']['sequences'], data_splits['test']['labels']):
-        encoded_string = torch.tensor(encode_sequence(model_string, vocab_map))
-
+        
         # Get sequence of HMM profile matches and pad
         encoded_string = torch.tensor(encode_sequence(model_string, vocab_map))
         padding = pad_len - len(encoded_string)
         encoded_string = F.pad(encoded_string, (0, padding), "constant", 0)
-
-
         sequence = encoded_string.unsqueeze(0)
         prediction = model(sequence)
         predictions.append(prediction)

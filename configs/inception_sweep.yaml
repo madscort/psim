@@ -1,5 +1,5 @@
 name: inception_sweep
-project: psim_v01
+project: psim_v02
 program: src/models/LN_train.py
 method: bayes
 metric:
@@ -7,23 +7,23 @@ metric:
   name: test_f1
 parameters:
   batch_size:
-    values: [16,32,64]
+    values: [16,32,64,128]
   optimizer.name:
-    values: ["adamw"]
+    values: ["adamw","adam"]
   optimizer.lr:
     values: [0.01,0.005,0.001]
   model.params.fc_dropout_rate:
-    values: [0.25]
+    values: [0.25,0.1]
   model.params.fc_num:
     values: [1,2,3]
   model.params.num_inception_layers:
-    values: [1,2,3,5,10]
+    values: [1,2,3,5]
   model.params.out_channels: 
     values: [8,16,32]
   model.params.kernel_size_b1: 
-    values: [3,5,7,9,11,21,31,61,121,241]
+    values: [3,5,7,9,11,21,31,61]
   model.params.kernel_size_b2: 
-    values: [3,5,7,9,11,21,31,61,121,241]
+    values: [3,5,7,9,11,21,31,61]
   model.params.keep_b3: 
     values: [True,False]
   model.params.keep_b4: 

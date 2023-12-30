@@ -26,13 +26,12 @@ Protein = collections.namedtuple("Protein", ["accession", "contig", "contig_num"
 Sequence = collections.namedtuple("Sequence", ["id", "host", "seq"])
 Hit = collections.namedtuple('Hit', ['target_name', 'target_accession', 'bitscore'])
 
-
 _orf_finder = pyrodigal_gv.ViralGeneFinder(meta=True, mask=True)
 
 def _predict_genes(seq: Tuple[str, str]):
     return (seq[0], len(seq[1]), _orf_finder.find_genes(seq[1]))
 
-prodigal_root = Path("data/visualization/real_data/prodigal/")
+prodigal_root = Path("data/visualization/validated_data/prodigal/")
 prodigal_root.mkdir(parents=True, exist_ok=True)
 prodigal_output = prodigal_root / "proteins.faa"
 class Prodigal:

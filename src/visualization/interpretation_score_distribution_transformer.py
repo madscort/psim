@@ -17,18 +17,19 @@ def main():
     dataset = dataset_root / "dataset_v02"
     tax = Path("data/processed/03_taxonomical_annotation/ps_tax_info.tsv")
     tax_df = pd.read_csv(tax, sep="\t", header=0, names=["id", "family", "genus", "species"])
+    
     df = pd.read_csv(dataset / "test.tsv", sep="\t", header=0, names=["id", "type", "label"])
     
-    outf = Path("data/visualization/score_distribution/v02/genus_type/inception/")
+    outf = Path("data/visualization/score_distribution/v02/sat_type/transformer/")
     outf.mkdir(parents=True, exist_ok=True)
-    outfn = outf / "24eamlea_version02.tsv"
-    modelin = Path("models/inception/checkpoint/24eamlea_version02.ckpt")
+    outfn = outf / "alldb_v02_small_less_vjiyv06a.tsv"
+    modelin = Path("models/transformer/alldb_v02_small_less_vjiyv06a.ckpt")
     data_module = FixedLengthSequenceModule(dataset=dataset,
-                                            return_type="fna",
+                                            return_type="hmm_match_sequence",
                                             num_workers=1,
                                             batch_size=1,
-                                            pad_pack=False,
-                                            use_saved=False)
+                                            pad_pack=True,
+                                            use_saved=True)
     data_module.setup()
 
     model = SequenceModule.load_from_checkpoint(checkpoint_path=modelin,
@@ -40,9 +41,6 @@ def main():
     # taxfamily = tax_df["family"].values.tolist()
     # tax_count = Counter(taxfamily)
 
-    taxgenus = tax_df["genus"].values.tolist()
-    tax_count = Counter(taxgenus)
-
     # taxspecies = tax_df["species"].values.tolist()
     # tax_count = Counter(taxspecies)
 
@@ -51,24 +49,19 @@ def main():
     # print(toptax)
     with open(outfn, "w") as fout:
         for n, (seq, label) in enumerate(data_module.test_dataloader()):
-            
             # Just label:
             #pred_id = int(label.squeeze())
             
             if df['label'].values[n] == 0:
                 continue
             
-            # pred_id = type_labels[n]
+            pred_id = type_labels[n]
             
-            # # Rough label type
-            # pred_id = type_labels[n]
-            # if int(label.squeeze()) == 0:
-            #     if pred_id.startswith("pro"):
-            #         pred_id = "Prophage"
-            #     elif pred_id.startswith("meta"):
-            #         pred_id = "Metagenomic"
-            #     elif pred_id.startswith("host"):
-            #         pred_id = "Host"
+            # Rough label type
+            # try:
+            #     pred_id = pred_id.split("_")[0]
+            # except IndexError:
+            #     pass
 
             # Get origin of sequence
             # type_id = pred_id
@@ -88,12 +81,6 @@ def main():
             #     print(f"IndexError: {df['id'].values[n]}")
             #     continue
 
-            try:
-                pred_id = tax_df[tax_df["id"] == df["id"].values[n]]["genus"].values[0]
-            except IndexError:
-                print(f"IndexError: {df['id'].values[n]}")
-                continue
-
             # try:
             #     pred_id = tax_df[tax_df["id"] == df["id"].values[n]]["species"].values[0]
             # except IndexError:
@@ -109,7 +96,6 @@ def main():
             outs = softmax(out, dim=1)
             prob = float(outs.squeeze()[1].item())
             print(pred_id,
-                  type_labels[n],
                   f"{prob:.4f}",
                   int(label.squeeze()),
                   sep="\t",

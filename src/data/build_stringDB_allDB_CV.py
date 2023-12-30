@@ -13,6 +13,9 @@ from tempfile import TemporaryDirectory
 from datetime import datetime
 import multiprocessing
 from typing import List, Tuple
+from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import train_test_split
+
 
 # 2023-11-01 mads
 
@@ -58,9 +61,11 @@ def write_proteins_to_file(proteins: List[Protein], f_out):
         print(f">{protein.protein}", file=f_out)
         print(protein.seq, file=f_out)
 
-def parallel_gene_prediction(dataset: Path, output: Path, samples: List[str], threads: int, only_satellites: bool) -> None:
+def parallel_gene_prediction(dataset: Path, output: Path, samples: List[str], threads: int, only_satellites: bool, raw_paths: bool) -> None:
 
-    if only_satellites:
+    if raw_paths:
+        sample_paths = samples
+    elif only_satellites:
         sample_paths = [Path(dataset, "train", "satellite_sequences", f"{sample}.fna") for sample in samples]
     else:
         sample_paths = [Path(dataset, "train", "sequences", f"{sample}.fna") for sample in samples]
@@ -383,6 +388,46 @@ def convert_alignments(msa: Path, output: Path):
         if subprocess_return.returncode != 0:
             raise Exception(f"Error running mmseqs createindex: {subprocess_return}")
 
+def custom_stratify(df, stratify_col, small_class_threshold=10):
+    # Get small classes
+    small_classes = df[stratify_col].value_counts()[df[stratify_col].value_counts() < small_class_threshold].index
+
+    # Separate
+    df_small = df[df[stratify_col].isin(small_classes)]
+    df_large = df[~df[stratify_col].isin(small_classes)]
+
+    # Split large classes with stratification
+    train_idx_large, test_idx_large = train_test_split(df_large.index, stratify=df_large[stratify_col], test_size=0.1, random_state=1)
+    # Randomly split small classes
+    train_idx_small, test_idx_small = train_test_split(df_small.index, test_size=0.1, random_state=1)
+
+    # Combine
+    train_idx = train_idx_large.union(train_idx_small)
+    test_idx = test_idx_large.union(test_idx_small)
+
+    return train_idx, test_idx
+
+def load_split_data(dataset, split):
+    df = pd.read_csv(dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"])
+    sequences = [dataset / split / "sequences" / f"{id}.fna" for id in df['id'].values]
+    labels = df['label'].values
+    return {'sequences': sequences, 'labels': labels}
+
+def resplit_data(data_splits, train_indices, val_indices, test_indices):
+    data_sequences = []
+    data_labels = []
+    for split in ['train', 'val', 'test']:
+        data_sequences.extend(data_splits[split]['sequences'])
+        data_labels.extend(data_splits[split]['labels'])
+
+    data_splits = {
+        'train': {'sequences': [data_sequences[i] for i in train_indices], 'labels': [data_labels[i] for i in train_indices]},
+        'val': {'sequences': [data_sequences[i] for i in val_indices], 'labels': [data_labels[i] for i in val_indices]},
+        'test': {'sequences': [data_sequences[i] for i in test_indices], 'labels': [data_labels[i] for i in test_indices]}
+    }
+
+    return data_splits
+
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -391,177 +436,193 @@ if __name__ == '__main__':
     load_dotenv(find_dotenv())
 
     dataset = Path("data/processed/10_datasets/dataset_v02")
-    sampletable = dataset / "train.tsv"
-    output = Path("data/processed/10_datasets/v02/attachings_allDB")
-    output_path = dataset / "strings" / "allDB"
-    samples = get_samples(sampletable=sampletable, all=True)
-    output.mkdir(parents=True, exist_ok=True)
-    output_path.mkdir(parents=True, exist_ok=True)
-    min_cluster_size = 5
-    result_db = output_path / "hmms" / "hmms.hmm"
-    result_db.parent.mkdir(parents=True, exist_ok=True)
-    num_threads = 6
+    sampletables = [pd.read_csv(dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"]) for split in ['train', 'val', 'test']]
+    df_sampletable = pd.concat(sampletables, ignore_index=True)
+
+    data_splits = {
+                split: load_split_data(dataset, split) for split in ['train', 'val', 'test']
+            }
+
+    # Initialize the StratifiedKFold object
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=1)
+
+    for fold, (fit_idx, test_idx) in enumerate(skf.split(df_sampletable['id'], df_sampletable['type']), 1):
+        if fold in [1,2,3]:
+            continue
+        print(f"Fold {fold}")
+
+        # Split the training data into training and validation sets
+
+        train_idx, val_idx = custom_stratify(df_sampletable.iloc[fit_idx], 'type')
+        data_splits = resplit_data(data_splits=data_splits, train_indices=train_idx, val_indices=val_idx, test_indices=test_idx)
+
+        output = Path(f"data/processed/10_datasets/CV/fold_{fold}/attachings_allDB")
+        output_path = dataset / "strings" / "CV" / f"allDB_{fold}"
+        
+        output.mkdir(parents=True, exist_ok=True)
+        output_path.mkdir(parents=True, exist_ok=True)
     
-    ## 1: Clustering
-    COLLECT_PROTEINS = False
-    CLUSTER = False
-    SAVE_REPRESENTATIVES = False
-    COLLECT_CLUSTERS = False
-    ALIGN_CLUSTERS = False
-    CONVERT_ALIGNMENTS = False
-    MMSEARCH_REPRESENTATIVES = False
-    TRANSLATE_DATASET = False
-    SCAN_DATASET = False
-    ATTACH_TO_DATASET = False
+        min_cluster_size = 5
+        
+        num_threads = 6
+        
+        ## 1: Clustering
+        COLLECT_PROTEINS = True
+        CLUSTER = True
+        SAVE_REPRESENTATIVES = True
+        COLLECT_CLUSTERS = True
+        ALIGN_CLUSTERS = True
+        CONVERT_ALIGNMENTS = True
+        MMSEARCH_REPRESENTATIVES = True
+        TRANSLATE_DATASET = True
+        SCAN_DATASET = True
+        ATTACH_TO_DATASET = True
 
-    if COLLECT_PROTEINS:
-        logging.info("Collecting proteins...")
-        logging.info(f"Number of samples: {len(samples)}")
-        parallel_gene_prediction(dataset, output, samples, num_threads, only_satellites=False)
-        logging.info("Done collecting proteins.")
+        if COLLECT_PROTEINS:
+            logging.info("Collecting proteins...")
+            logging.info(f"Number of samples: {len(data_splits['train']['sequences'])}")
+            parallel_gene_prediction(None,output,data_splits['train']['sequences'],num_threads,only_satellites=False,raw_paths=True)
+            logging.info("Done collecting proteins.")
 
-    mm = MMseqs2(db=output / "proteins.faa", out=output / "mmseqsDB")
-    if CLUSTER:
-        logging.info("Clustering...")
-        mm.createdb()
-        mm.cluster()
-        mm.createtsv()
-        counts = mm.counts()
-        with open(output / "size_dist.tsv", "w") as f_out:
-            for protein in counts:
-                print(protein, counts[protein], file=f_out, sep="\t")
-        logging.info("Done clustering.")
-    
-    representatives = mm.get_representatives(min_cluster_size)
-    logging.info(f"Number of clusters: {len(representatives)}")
+        mm = MMseqs2(db=output / "proteins.faa", out=output / "mmseqsDB")
+        if CLUSTER:
+            logging.info("Clustering...")
+            mm.createdb()
+            mm.cluster()
+            mm.createtsv()
+            counts = mm.counts()
+            with open(output / "size_dist.tsv", "w") as f_out:
+                for protein in counts:
+                    print(protein, counts[protein], file=f_out, sep="\t")
+            logging.info("Done clustering.")
+        
+        representatives = mm.get_representatives(min_cluster_size)
+        logging.info(f"Number of clusters: {len(representatives)}")
 
-    if SAVE_REPRESENTATIVES:
-        logging.info("Saving representatives...")
-        seq_list = list(SeqIO.parse(output / "proteins.faa", "fasta"))
-        records = get_records_from_identifiers(records=seq_list, identifiers=representatives)
-        SeqIO.write(records, output / "representatives.faa", "fasta")
-        logging.info("Done saving representatives.")
+        if SAVE_REPRESENTATIVES:
+            logging.info("Saving representatives...")
+            seq_list = list(SeqIO.parse(output / "proteins.faa", "fasta"))
+            records = get_records_from_identifiers(records=seq_list, identifiers=representatives)
+            SeqIO.write(records, output / "representatives.faa", "fasta")
+            logging.info("Done saving representatives.")
 
-    if COLLECT_CLUSTERS:
-        logging.info("Collecting clusters...")
-        seq_list = list(SeqIO.parse(output / "proteins.faa", "fasta"))
-        for representative in tqdm(representatives):
-            cluster = mm.get_clusters(representative)
-            cluster_path = output / "clusters" / f"{representative.replace('|','_')}.faa"
-            cluster_path.parent.mkdir(parents=True, exist_ok=True)
-            records = get_records_from_identifiers(records=seq_list, identifiers=cluster)
-            SeqIO.write(records, cluster_path, "fasta")
-        logging.info("Done collecting clusters.")
+        if COLLECT_CLUSTERS:
+            logging.info("Collecting clusters...")
+            seq_list = list(SeqIO.parse(output / "proteins.faa", "fasta"))
+            for representative in tqdm(representatives):
+                cluster = mm.get_clusters(representative)
+                cluster_path = output / "clusters" / f"{representative.replace('|','_')}.faa"
+                cluster_path.parent.mkdir(parents=True, exist_ok=True)
+                records = get_records_from_identifiers(records=seq_list, identifiers=cluster)
+                SeqIO.write(records, cluster_path, "fasta")
+            logging.info("Done collecting clusters.")
 
-    ####
-    ## Manual remove (iteration)
-    ####
+        ####
+        ## Manual remove (iteration)
+        ####
 
-    unused = {''}
+        unused = {''}
 
-    if ALIGN_CLUSTERS:
-        logging.info("Aligning clusters...")
-        alignment_root = output / "alignments"
-        alignment_root.mkdir(parents=True, exist_ok=True)
-        for representative in tqdm(representatives):
-            if representative in unused:
-                continue
-            fasta_input = output / "clusters" / f"{representative.replace('|','_')}.faa"
-            alignment_output = alignment_root / f"{representative.replace('|','_')}.st"
-            clustalo = CLUSTALO(fasta=fasta_input, out=alignment_output)
-            clustalo.align()
-        cat_alignments(alignment_root, output / "alignments.st")
-        logging.info("Done aligning clusters.")
+        if ALIGN_CLUSTERS:
+            logging.info("Aligning clusters...")
+            alignment_root = output / "alignments"
+            alignment_root.mkdir(parents=True, exist_ok=True)
+            for representative in tqdm(representatives):
+                if representative in unused:
+                    continue
+                fasta_input = output / "clusters" / f"{representative.replace('|','_')}.faa"
+                alignment_output = alignment_root / f"{representative.replace('|','_')}.st"
+                clustalo = CLUSTALO(fasta=fasta_input, out=alignment_output)
+                clustalo.align()
+            cat_alignments(alignment_root, output / "alignments.st")
+            logging.info("Done aligning clusters.")
 
-    if CONVERT_ALIGNMENTS:
-        # Convert to msaDB, then profileDB, then index:
-        convert_alignments(msa=output / "alignments.st", output=output)
-        logging.info("Done converting alignments to profileDB.")
+        if CONVERT_ALIGNMENTS:
+            # Convert to msaDB, then profileDB, then index:
+            convert_alignments(msa=output / "alignments.st", output=output)
+            logging.info("Done converting alignments to profileDB.")
 
-    mm = SMMseqs2(input_fasta=output / "representatives.faa", mmseqs_db=output / "mmseqsprofileDB" / "profileDB", output_dir=output / "mmsearch")
-    
-    if MMSEARCH_REPRESENTATIVES:
-        logging.info("Searching representatives...")
-        mm.run_alignment(threads=num_threads, evalue=1e-3)
-        logging.info("Done searching representatives.")
+        mm = SMMseqs2(input_fasta=output / "representatives.faa", mmseqs_db=output / "mmseqsprofileDB" / "profileDB", output_dir=output / "mmsearch")
+        
+        if MMSEARCH_REPRESENTATIVES:
+            logging.info("Searching representatives...")
+            mm.run_alignment(threads=num_threads, evalue=1e-3)
+            logging.info("Done searching representatives.")
 
-    hit_reps = mm.get_best_hits()
-    representatives_used = set([hit_reps[rep].target_accession for rep in hit_reps])
-    reps = set([i.replace('|','_') for i in representatives])
-    logging.info(f"Number of representatives: {len(reps)}")
-    logging.info(f"Number of representatives used: {len(representatives_used)}")
-    logging.info(f"Number of representatives not used: {reps - representatives_used}")
+        hit_reps = mm.get_best_hits()
+        representatives_used = set([hit_reps[rep].target_accession for rep in hit_reps])
+        reps = set([i.replace('|','_') for i in representatives])
+        logging.info(f"Number of representatives: {len(reps)}")
+        logging.info(f"Number of representatives used: {len(representatives_used)}")
+        logging.info(f"Number of representatives not used: {reps - representatives_used}")
 
-    splits = ["train", "val", "test"]
+        splits = ["train", "val", "test"]
 
-    if TRANSLATE_DATASET:
-        logging.info("Translating dataset...")
-        data_splits = {
-            split: load_split_data(dataset, split) for split in splits
-        }
+        if TRANSLATE_DATASET:
+            logging.info("Translating dataset...")
 
-        translated_data_splits = {
-            split: {'sequences': [None]*len(data_splits[split]['labels']), 'labels': data_splits[split]['labels']} for split in splits
-        }
+            translated_data_splits = {
+                split: {'sequences': [None]*len(data_splits[split]['labels']), 'labels': data_splits[split]['labels']} for split in splits
+            }
 
-        for split in splits:
-            print(f"Split: {split}")
-            
-            sequences = data_splits[split]['sequences']
-            with open(output / f"{split}_split.faa", "w") as f_out:
-                print("Translating sequences...")
+            for split in splits:
+                print(f"Split: {split}")
                 
-                for n, sequence in enumerate(tqdm(sequences)):
+                sequences = data_splits[split]['sequences']
+                with open(output / f"{split}_split.faa", "w") as f_out:
+                    print("Translating sequences...")
                     
-                    protein_string = {}
-                    proteins = gene_prediction(sequence)
-                    
-                    for protein in proteins:
-                        protein_string[protein.protein] = "no_hit"
-                        print(f">{protein.protein}", file=f_out)
-                        print(protein.seq, file=f_out)
-                    
-                    translated_data_splits[split]['sequences'][n] = protein_string
-        torch.save(translated_data_splits, output / "translated.pt")
-        logging.info("Done translating dataset.")
+                    for n, sequence in enumerate(tqdm(sequences)):
+                        
+                        protein_string = {}
+                        proteins = gene_prediction(sequence)
+                        
+                        for protein in proteins:
+                            protein_string[protein.protein] = "no_hit"
+                            print(f">{protein.protein}", file=f_out)
+                            print(protein.seq, file=f_out)
+                        
+                        translated_data_splits[split]['sequences'][n] = protein_string
+            torch.save(translated_data_splits, output / "translated.pt")
+            logging.info("Done translating dataset.")
 
-    for split in splits:
-        out_path = output / f"mm_{split}_search"
-        out_path.mkdir(parents=True, exist_ok=True)
-
-    mm_splits = { split: SMMseqs2(input_fasta=output / f"{split}_split.faa", mmseqs_db=output / "mmseqsprofileDB" / "profileDB", output_dir=output / f"mm_{split}_search") for split in splits}
-
-    if SCAN_DATASET:
-        logging.info("Scanning dataset...")
         for split in splits:
-            print(f"Split: {split}")
-            mm_splits[split].run_alignment(threads=num_threads, evalue=1e-3)
-        logging.info("Done scanning dataset.")
+            out_path = output / f"mm_{split}_search"
+            out_path.mkdir(parents=True, exist_ok=True)
 
-    if ATTACH_TO_DATASET:
-        logging.info("Attaching dataset...")
-        hmm_data_splits = torch.load(output / "translated.pt")
-        for split in splits:
-            print(f"Split: {split}")
-            hits = mm_splits[split].get_best_hits()
-            for n, protein_string in enumerate(tqdm(hmm_data_splits[split]['sequences'])):
-                for protein in protein_string:
-                    if protein in hits:
-                        protein_string[protein] = hits[protein].target_accession
-                hmm_data_splits[split]['sequences'][n] = list(protein_string.values())
+        mm_splits = { split: SMMseqs2(input_fasta=output / f"{split}_split.faa", mmseqs_db=output / "mmseqsprofileDB" / "profileDB", output_dir=output / f"mm_{split}_search") for split in splits}
 
-        # Get vocabulary from all non-redundant accessions + 'no_hit'
-        vocab = set()  
-        for split in splits:
-            vocab.update(x for seq in hmm_data_splits[split]['sequences'] for x in seq)
-        vocab_map = {name: i for i, name in enumerate(vocab)}
-        vocab.remove("no_hit")
-        accessions = set([i.replace('|','_') for i in representatives])
-        print(f"Number of non-redundant accessions in HMM database: {len(accessions)}")
-        print(f"Number of non-redundant accessions used in dataset: {len(vocab)}")
-        print(f"Accessions numbers not used: {len(accessions - vocab)}")
-        print(f"Accessions numbers not used: {accessions - vocab}")
-        torch.save(hmm_data_splits, output_path / "dataset.pt")
-        torch.save(vocab_map, output_path / "vocab_map.pt")
+        if SCAN_DATASET:
+            logging.info("Scanning dataset...")
+            for split in splits:
+                print(f"Split: {split}")
+                mm_splits[split].run_alignment(threads=num_threads, evalue=1e-3)
+            logging.info("Done scanning dataset.")
 
-        logging.info("Done attaching dataset.")
+        if ATTACH_TO_DATASET:
+            logging.info("Attaching dataset...")
+            hmm_data_splits = torch.load(output / "translated.pt")
+            for split in splits:
+                print(f"Split: {split}")
+                hits = mm_splits[split].get_best_hits()
+                for n, protein_string in enumerate(tqdm(hmm_data_splits[split]['sequences'])):
+                    for protein in protein_string:
+                        if protein in hits:
+                            protein_string[protein] = hits[protein].target_accession
+                    hmm_data_splits[split]['sequences'][n] = list(protein_string.values())
+
+            # Get vocabulary from all non-redundant accessions + 'no_hit'
+            vocab = set()  
+            for split in splits:
+                vocab.update(x for seq in hmm_data_splits[split]['sequences'] for x in seq)
+            vocab_map = {name: i for i, name in enumerate(vocab)}
+            vocab.remove("no_hit")
+            accessions = set([i.replace('|','_') for i in representatives])
+            print(f"Number of non-redundant accessions in HMM database: {len(accessions)}")
+            print(f"Number of non-redundant accessions used in dataset: {len(vocab)}")
+            print(f"Accessions numbers not used: {len(accessions - vocab)}")
+            print(f"Accessions numbers not used: {accessions - vocab}")
+            torch.save(hmm_data_splits, output_path / "dataset.pt")
+            torch.save(vocab_map, output_path / "vocab_map.pt")
+
+            logging.info("Done attaching dataset.")

@@ -4,9 +4,9 @@ import pandas as pd
 from pathlib import Path
 from pytorch_lightning import seed_everything
 from torch.nn.functional import softmax
-from torch import norm
-from captum.attr import IntegratedGradients, LayerIntegratedGradients
-from captum.attr import NoiseTunnel
+from torch import norm, full_like, empty
+from torch import long as tlong
+from captum.attr import LayerIntegratedGradients
 import matplotlib.pyplot as plt
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
@@ -16,11 +16,11 @@ def main():
     seed_everything(1)
     
     dataset_root = Path("data/processed/10_datasets/")
-    dataset = dataset_root / "dataset_v01"
+    dataset = dataset_root / "dataset_v02"
     outf = Path("data/visualization/captum/integrated_gradients/transformer/")
     outf.mkdir(parents=True, exist_ok=True)
-    outfn = outf / "aggregated_lig_all.tsv"
-    modelin = Path("models/transformer/alldb_small_wodict_ne6zbqji.ckpt")
+    outfn = outf / "aggregated_lig_alldb_prophage_baseline_v02.tsv"
+    modelin = Path("models/transformer/alldb_v02_small_iak7l6eg.ckpt")
     data_module = FixedLengthSequenceModule(dataset=dataset,
                                             return_type="hmm_match_sequence",
                                             num_workers=1,
@@ -42,10 +42,14 @@ def main():
     
     with open(outfn, "w") as fout:
         for n, (seq, label) in enumerate(data_module.test_dataloader()):
+            if not test_types[n].startswith("provirus"):
+                continue
+            # if label == 0:
+            #     continue
             proteins = [inv_vocab[x] for x in seq.squeeze().detach().numpy()]
-            
+            baseline = full_like(empty(1, 56,dtype=tlong), vocab["no_hit"])
             lig = LayerIntegratedGradients(model, model.model.embedding)
-            attributions_ig = lig.attribute(inputs=seq, target=1, n_steps=200)
+            attributions_ig = lig.attribute(inputs=seq, baselines=baseline, target=0, n_steps=200)
             attributions = attributions_ig.sum(dim=-1).squeeze(0)
             attributions = attributions / norm(attributions)
 
@@ -59,7 +63,6 @@ def main():
                     origin = "host"
                 elif protein.startswith("S"):
                     origin = "metagenome"
-
 
                 print(protein,
                     attribution.item(),

@@ -205,7 +205,7 @@ class SMMseqs2:
             "--threads", str(threads),
             '--start-sens', '1',
             '--sens-steps', '3',
-            '-s','7',
+            '-s','5',
             "-c", "0.6",
             "--cov-mode", "1"
         ]
@@ -304,7 +304,7 @@ def convert_alignments(msa: Path, output: Path):
         raise Exception(f"Error running mmseqs msa2profile: {subprocess_return}")
     with TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
-        cmd = ['mmseqs', 'createindex', '-s', '7', profile_root / "profileDB", tmpdir]
+        cmd = ['mmseqs', 'createindex', '-s', '5', profile_root / "profileDB", tmpdir]
         subprocess_return = subprocess.run(cmd, stdout=subprocess.DEVNULL)
         if subprocess_return.returncode != 0:
             raise Exception(f"Error running mmseqs createindex: {subprocess_return}")
@@ -316,9 +316,9 @@ if __name__ == '__main__':
     project_dir = Path(__file__).resolve().parents[2]
     load_dotenv(find_dotenv())
 
-    dataset = Path("data/processed/10_datasets/dataset_v01")
+    dataset = Path("data/processed/10_datasets/dataset_v02")
     sampletable = dataset / "train.tsv"
-    output = Path("data/processed/10_datasets/attachings_mmDB")
+    output = Path("data/processed/10_datasets/v02/attachings_mmDB")
     output_path = dataset / "strings" / "mmDB"
     samples = get_samples(sampletable)
     output.mkdir(parents=True, exist_ok=True)
@@ -333,13 +333,13 @@ if __name__ == '__main__':
     CLUSTER = False
     SAVE_REPRESENTATIVES = False
     COLLECT_CLUSTERS = False
-    ALIGN_CLUSTERS = True
-    CONVERT_ALIGNMENTS = False
+    ALIGN_CLUSTERS = False
+    CONVERT_ALIGNMENTS = True
     OPT_A3M_CONVERSION = False
-    MMSEARCH_REPRESENTATIVES = False
+    MMSEARCH_REPRESENTATIVES = True
     TRANSLATE_DATASET = False
-    SCAN_DATASET = False
-    ATTACH_TO_DATASET = False
+    SCAN_DATASET = True
+    ATTACH_TO_DATASET = True
 
     if COLLECT_PROTEINS:
         logging.info("Collecting proteins...")
@@ -389,13 +389,15 @@ if __name__ == '__main__':
             clustalo.align()
         cat_alignments(alignment_root, output / "alignments.st")
         logging.info("Done aligning clusters.")
-
+    
     if CONVERT_ALIGNMENTS:
         # Convert to msaDB, then profileDB, then index:
         logging.info("Converting alignments to profileDB...")
         convert_alignments(msa=output / "alignments.st", output=output)
         logging.info("Done converting alignments to profileDB.")
-    unused = ["PS_U1976|25", "PS_U909|15"]
+    
+    
+    unused = ["PS_U935_1"]
     if OPT_A3M_CONVERSION:
         logging.info("Converting alignments to A3M...")
         a3m_root = output / "alignments_a3m"
@@ -414,7 +416,7 @@ if __name__ == '__main__':
     # (optional v2 enrichment) bypass alignment extract individual fasta files
     # (optional v2 enrichment) run colabfold search with fasta files
     # (optional v2 enrichment) reformat a3m files to stockholm
-
+    
     mm = SMMseqs2(input_fasta=output / "representatives.faa", mmseqs_db=output / "mmseqsprofileDB" / "profileDB", output_dir=output / "mmsearch")
     
     if MMSEARCH_REPRESENTATIVES:

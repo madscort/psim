@@ -1,12 +1,12 @@
-project: "psim"
+project: "psim_v02"
 accelerator: "gpu"
 devices: -1
-dataset: "dataset_v01"
-batch_size: 64
+dataset: "dataset_v02"
+batch_size: 32
 num_workers: 4
 epochs: 30
-run_group: transformer_sweep_01
-run_name: transformer
+run_group: deep_inception_v02
+run_name: deep_inception
 
 defaults:
   - model: inception
@@ -14,5 +14,5 @@ defaults:
 
 optimizer:
   name: "adamw"
-  lr: 0.001
-  warmup: False
+  lr: 0.0025
+  warmup: True

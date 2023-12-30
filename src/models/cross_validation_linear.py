@@ -1,22 +1,20 @@
-import hydra
+import shap
+import numpy as np
+import pandas as pd
+import logging
 import sys
-from collections import Counter
-import mappy as mp
-from tempfile import TemporaryDirectory
-
+import matplotlib.pyplot as plt
+from Bio import SeqIO
+from torch import load as tload
 from pathlib import Path
-from omegaconf import DictConfig
-from matplotlib import pyplot as plt
-from sklearn.metrics import roc_curve, auc
-from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score, recall_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score, recall_score, confusion_matrix
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from src.models.LNSequenceModule import SequenceModule
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split
-import pandas as pd
-import numpy as np
 from scipy.stats import t
 
-def mapq2prob(quality_score):
-    return 10 ** (-quality_score / 10)
 
 rename = {'test_acc': 'accuracy_score', 'test_f1': 'f1_score', 'test_precision': 'precision_score', 'test_auc': 'roc_auc_score', 'test_recall': 'recall_score'}
 
@@ -72,11 +70,22 @@ def custom_stratify(df, stratify_col, small_class_threshold=10):
 
     return train_idx, test_idx
 
-def load_split_data(dataset, split):
-    df = pd.read_csv(dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"])
-    sequences = [dataset / split / "sequences" / f"{id}.fna" for id in df['id'].values]
-    labels = df['label'].values
-    return {'sequences': sequences, 'labels': labels}
+def encode_sequence(sequence, vocabulary_mapping):
+    return [vocabulary_mapping[gene_name] for gene_name in sequence]
+
+def encode_wo_nohit_sequence(sequence, vocabulary_mapping):
+    return [vocabulary_mapping[gene_name] for gene_name in sequence if gene_name != "no_hit"]
+
+def count_encode(samples, vocab_size):
+    features = np.zeros((len(samples), vocab_size), dtype=int)
+    for i, sample in enumerate(samples):
+        for gene_code in sample:
+            if not gene_code-1 < vocab_size:
+                print("ERROR: ", gene_code)
+            else:
+                features[i, gene_code-1] += 1
+    
+    return features
 
 def resplit_data(data_splits, train_indices, val_indices, test_indices):
     data_sequences = []
@@ -93,102 +102,70 @@ def resplit_data(data_splits, train_indices, val_indices, test_indices):
 
     return data_splits
 
-@hydra.main(config_path="../../configs", config_name="config", version_base="1.2")
-def main(cfg: DictConfig):
+def main():
 
-    output_metrics = Path("data/visualization/performance/v02/confidence/cross_mappy.tsv")
-    output_metrics_raw = Path("data/visualization/performance/v02/confidence/cross_mappy_raw.tsv")
-    dataset_root = Path("data/processed/10_datasets/")
-    dataset = Path(dataset_root, cfg.dataset)
+    root = Path("/Users/madsniels/Documents/_DTU/speciale/cpr/code/psim")
+    dataset_root = root / "data/processed/10_datasets/"
+    version = "dataset_v02"
+    dataset = dataset_root / version
+    checkpoint = root / "models/transformer/alldb_v02_small_iak7l6eg.ckpt"
+    output_metrics = Path("data/visualization/performance/v02/confidence/cross_linear.tsv")
+    output_metrics_raw = Path("data/visualization/performance/v02/confidence/cross_linear_raw.tsv")
+    
     sampletables = [pd.read_csv(dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"]) for split in ['train', 'val', 'test']]
     df_sampletable = pd.concat(sampletables, ignore_index=True)
 
-    data_splits = {
-                split: load_split_data(dataset, split) for split in ['train', 'val', 'test']
-            }
+    c_value = 1
+    max_it = 5000
 
+    mo = SequenceModule.load_from_checkpoint(checkpoint_path=checkpoint, map_location="cpu")
+    vocab_map = mo.vocab_map
+    del vocab_map['<PAD>']
+    del vocab_map['no_hit']
+
+    scaler = StandardScaler()
+
+    data_splits = tload(dataset / "strings" / "allDB" / "dataset.pt", map_location="cpu")
+    
     # Initialize the StratifiedKFold object
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=1)
 
     fold_results = []
-
     for fold, (fit_idx, test_idx) in enumerate(skf.split(df_sampletable['id'], df_sampletable['type'])):
         print(f"Fold {fold}")
         # Split the training data into training and validation sets
-
+        
         train_idx, val_idx = custom_stratify(df_sampletable.iloc[fit_idx], 'type')
         
         data_splits = resplit_data(data_splits=data_splits, train_indices=train_idx, val_indices=val_idx, test_indices=test_idx)
 
-        with TemporaryDirectory() as tmp:
-            # Create fasta for training data
-            train_fasta = Path(tmp) / "train.fna"
-            with open(train_fasta, "w") as f:
-                # Only positive labels
-                for label, sequence_path in zip(data_splits['train']['labels'],data_splits['train']['sequences']):
-                    if label == 0:
-                        continue
-                    with open(sequence_path, 'r') as g:
-                        f.write(g.read())
+    
+        X_train = [encode_wo_nohit_sequence(string, vocab_map) for string in data_splits['train']['sequences']]
+        X_train = count_encode(X_train, len(vocab_map))
+        X_train = scaler.fit_transform(X_train)
+        y_train = data_splits['train']['labels']
+        
+        X_val = [encode_wo_nohit_sequence(string, vocab_map) for string in data_splits['test']['sequences']]
+        X_val = count_encode(X_val, len(vocab_map))
+        X_val = scaler.transform(X_val)
+        y_val = data_splits['test']['labels']
 
-            # Load as index:
-            a = mp.Aligner(str(train_fasta))  # load or build index
-            if not a:
-                raise Exception("ERROR: failed to load/build index")
-            
-            # Align each test sequence to the index
-            y_prob = []
-            y_true = []
-            y_pred = []
-            for label, sequence_path in zip(data_splits['test']['labels'],data_splits['test']['sequences']):
-                max_score = 0
-                match_id = None
-                for name, seq, qual in mp.fastx_read(str(sequence_path)):
-                    # align sequence to index
-                    for hit in a.map(seq): # traverse alignments
-                        if hit.mapq > max_score:
-                            max_score = hit.mapq
-                            match_id = hit.ctg
-                if match_id is not None:
-                    y_pred.append(df_sampletable.loc[df_sampletable['id'] == match_id]['label'].values[0])
-                else:
-                    y_pred.append(0)
-                y_prob.append(1 - mapq2prob(max_score))
-                y_true.append(label)
-
-        accuracy = accuracy_score(y_true, y_pred)
-        f1 = f1_score(y_true, y_pred, average='binary')
-        precision = precision_score(y_true, y_pred, average='binary')
-        recall = recall_score(y_true, y_pred, average='binary')
-        roc_auc = roc_auc_score(y_true, y_prob)
-        print(f"Accuracy: {accuracy}")
-        print(f"F1: {f1}")
-        print(f"Precision: {precision}")
-        print(f"Recall: {recall}")
-        print(f"ROC AUC: {roc_auc}")
+        model = LogisticRegression(penalty='l1', solver='saga', C=c_value, max_iter=max_it, random_state=1, n_jobs=6)
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_val)
+        accuracy = accuracy_score(y_val, y_pred)
+        precision = precision_score(y_val, y_pred)
+        recall = recall_score(y_val, y_pred)
+        f1 = f1_score(y_val, y_pred)
+        roc_auc = roc_auc_score(y_val, model.predict_proba(X_val)[:, 1])
+        coefficients = model.coef_[0]
+        pos_coefficients = coefficients[coefficients > 0]
+        neg_coefficients = coefficients[coefficients < 0]
+        tot_coeff = len(pos_coefficients) + len(neg_coefficients)
+        logging.info(f"Fold: {fold}, Features: {tot_coeff}, Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, F1: {f1:.3f}")
 
         fold_results.append({'test_acc': accuracy, 'test_f1': f1, 'test_precision': precision, 'test_recall': recall, 'test_auc': roc_auc})
         
-        # Plot using matplotlib
-        # plt.figure()
-        # plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
-        # plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-        # plt.xlabel('False Positive Rate')
-        # plt.ylabel('True Positive Rate')
-        # plt.title('Receiver Operating Characteristic (ROC) Curve')
-        # plt.legend(loc="lower right")
-        # plt.show()
-
-        # y_hat = outputs[0]['y_hat'].cpu().numpy()
-        # y = outputs[0]['y'].cpu().numpy()
-
-        # # Save predictions and ground truth labels for this fold
-        # fold_results.append((y_hat, y))
-
-    # Save the results to disk
-    # with open(Path('data/visualization/cross_validation/cross_val_results.pkl').absolute(), 'wb') as f:
-    #     pickle.dump(fold_results, f)
-
     metrics = ['test_acc', 'test_f1', 'test_precision', 'test_auc', 'test_recall']
     with open(output_metrics_raw, "w") as fin:
         for n, result in enumerate(fold_results):
@@ -197,6 +174,7 @@ def main(cfg: DictConfig):
         
     calculate_means_and_cis_to_file(fold_results, output_metrics)
 
-
 if __name__ == "__main__":
+    log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    logging.basicConfig(level=logging.INFO, format=log_fmt)
     main()

@@ -26,7 +26,7 @@ def mapq2prob(quality_score):
 
 np.random.seed(1)
 
-dataset_id = "dataset_v01"
+dataset_id = "dataset_v02"
 
 dataset = Path("data/processed/10_datasets") / dataset_id
 training_table = Path(dataset) / "train.tsv"
@@ -38,9 +38,9 @@ individual_test_sequences = Path(dataset) / "test" / "sequences"
 tax = Path("data/processed/03_taxonomical_annotation/ps_tax_info.tsv")
 tax_df = pd.read_csv(tax, sep="\t", header=0, names=["id", "family", "genus", "species"])
 
-outf = Path("data/visualization/score_distribution/taxspecies/mappy_base/")
+outf = Path("data/visualization/score_distribution/type/mappy_base/")
 outf.mkdir(parents=True, exist_ok=True)
-outfn = outf / "mappy.tsv"
+outfn = outf / "mappy_all_types.tsv"
 
 # Load training test split
 
@@ -97,8 +97,8 @@ toptax = [x[0] for x in common_tax]
 
 with open(outfn, "w") as fout:
     for sample_n, mapq in enumerate(max_scores):
-        if df_test['label'][sample_n] == 0:
-            continue
+        # if df_test['label'][sample_n] == 0:
+        #     continue
         prob = 1 - mapq2prob(mapq)
         label = df_test['label'][sample_n]
 
@@ -106,11 +106,14 @@ with open(outfn, "w") as fout:
         #pred_id = df_test['label'][sample_n]
         
         # Type
-        # pred_id = type_labels[sample_n]
-        # try:
-        #     pred_id = pred_id.split("_")[0]
-        # except IndexError:
-        #     pass
+        pred_id = type_labels[sample_n]
+        if df_test['label'][sample_n] == 0:
+            if pred_id.startswith("pro"):
+                pred_id = "Prophage"
+            elif pred_id.startswith("meta"):
+                pred_id = "Metagenomic"
+            elif pred_id.startswith("host"):
+                pred_id = "Host"
         
         # Tax family
 
@@ -121,13 +124,21 @@ with open(outfn, "w") as fout:
         #     print(f"IndexError: {df_test['id'].values[sample_n]}")
         #     continue
 
+        # Tax genus
+        # Get the taxonomic family of the sequence.
+        # try:
+        #     pred_id = tax_df[tax_df["id"] == df_test["id"].values[sample_n]]["genus"].values[0]
+        # except IndexError:
+        #     print(f"IndexError: {df_test['id'].values[sample_n]}")
+        #     continue
+
         # Tax species
 
-        try:
-            pred_id = tax_df[tax_df["id"] == df_test["id"].values[sample_n]]["species"].values[0]
-        except IndexError:
-            print(f"IndexError: {df_test['id'].values[sample_n]}")
-            continue
+        # try:
+        #     pred_id = tax_df[tax_df["id"] == df_test["id"].values[sample_n]]["species"].values[0]
+        # except IndexError:
+        #     print(f"IndexError: {df_test['id'].values[sample_n]}")
+        #     continue
         
         # if pred_tax in toptax:
         #     pred_id = pred_tax

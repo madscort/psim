@@ -12,6 +12,8 @@ from torch.nn.functional import one_hot
 from Bio import SeqIO
 import pyrodigal_gv
 import collections
+import numpy as np
+import torch.nn.functional as F
 from src.models.LNSequenceModule import SequenceModule
 from src.data.LN_data_module import encode_sequence
 from src.data.build_stringDB_pfama import get_one_string
@@ -31,19 +33,20 @@ def main():
 
     # Get all info:
     sampletable = Path("data/processed/01_combined_databases/sample_table.tsv") # contains sample_id, type and label
-    sample_table_test = Path("data/processed/10_datasets/dataset_v01/test.tsv") # used to get sequences
+    sample_table_test = Path("data/processed/10_datasets/dataset_v02/test.tsv") # used to get sequences
     coordtable = Path("data/processed/01_combined_databases/satellite_coordinates.tsv") # contains sample_id, ref_seq, coord_start, coord_end
     ps_sample = collections.namedtuple("ps_sample", ["sample_id", "type", "ref_seq", "coord_start", "coord_end"])
 
     ref_seqs = Path("data/processed/01_combined_databases/reference_sequences/")
     ps_taxonomy = Path("data/processed/01_combined_databases/ps_tax_info.tsv")
-    output_root = Path("data/visualization/sliding_window/version01_protein_version_blitsDB")
+    output_root = Path("data/visualization/sliding_window/version02_protein_version_alldb")
     output_root.mkdir(parents=True, exist_ok=True)
     output_file = output_root / "predictions.tsv"
     test = pd.read_csv(sample_table_test, sep="\t", header=0, names=['id', 'type', 'label'])
     sampleids = test[test['label'] == 1]['id'].tolist()[:50]
     
-    model_database = Path("data/processed/10_datasets/attachings_blitsDB/mmseqsprofileclusterDB/profileClusterDB")
+    model_checkpoint = Path("models/transformer/alldb_v02_small_iak7l6eg.ckpt")
+    model_database = Path("data/processed/10_datasets/v02/attachings_allDB/mmseqsprofileDB/profileDB")
     model_database_out = output_root / "db_out"
     model_database_out.mkdir(parents=True, exist_ok=True)
 
@@ -179,7 +182,7 @@ def main():
     else:
         translated_sequences = torch.load(output_root / "proteins.pt")
 
-    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/transformer/blitsDB_a4q0ml04.ckpt").absolute(),
+    model = SequenceModule.load_from_checkpoint(checkpoint_path=model_checkpoint,
                                                 map_location=device)
     model.to(device)
     model.eval()
@@ -189,12 +192,13 @@ def main():
         max_seq_length = 56 # LATER ADD TO: model.max_seq_length
 
     database_type = "mmseqs"
+    database_source = "pfama" 
     if database_type == "hmm":
         mDB = HMMER(hmm=model_database, db=output_root / "proteins.faa", out=model_database_out, scan=True)
     elif database_type == "mmseqs":
         mDB = SMMseqs2(input_fasta=output_root / "proteins.faa", mmseqs_db=model_database, output_dir=model_database_out)
 
-    CALL_ALL = False
+    CALL_ALL = True
     if CALL_ALL:
         if database_type == "hmm":
             mDB.scan()
@@ -206,10 +210,24 @@ def main():
     print("Vocabulary size: ", len(vocab_map))
     print("Markers used: ", len(set(x.target_name for x in hits.values())))
 
+    ecoli = {"NZ_CP013662.1",
+        "NZ_CP019961.1",
+        "NZ_CP022664.1",
+        "NZ_CP024278.1",
+        "NZ_CP028741.1",
+        "NZ_CP051735.1",
+        "NZ_CP061101.1",
+        "NZ_CP068802.1",
+        "NZ_CP091704.1"
+        }
+
     all_preds = []
     all_preds_prob = []
     protein_stride = 1
     for n, translated_sequence in enumerate(translated_sequences):
+        # if sequences[n].id not in ecoli:
+        #     continue
+        
         if n % 10 == 0:
             print(n)
         print(translated_sequence[0].origin)
@@ -228,7 +246,10 @@ def main():
                     length_dna += len(translated_sequence[current_index].seq)
                     if translated_sequence[current_index].protein in hits:
                         if database_type == "hmm":
-                            model_string.append(hits[translated_sequence[current_index].protein].target_name)
+                            if database_source == "pfama":
+                                model_string.append(hits[translated_sequence[current_index].protein].target_accession)
+                            else:
+                                model_string.append(hits[translated_sequence[current_index].protein].target_name)
                         elif database_type == "mmseqs":
                             target_name = hits[translated_sequence[current_index].protein].target_name.replace("|", "_")
                             model_string.append(target_name)
@@ -239,8 +260,11 @@ def main():
                 else:
                     eating_proteins = False
             if transformer:
+                # Get sequence of HMM profile matches and pad
                 encoded_string = torch.tensor(encode_sequence(model_string, vocab_map))
-                sequence = {"seqs": encoded_string.unsqueeze(0)}
+                padding = max_seq_length - len(encoded_string)
+                encoded_string = F.pad(encoded_string, (0, padding), "constant", 0)
+                sequence = encoded_string.unsqueeze(0)
             prediction = model(sequence)
             if prediction.argmax(dim=1).tolist()[0] == 1:
                 for x in range(protein_string[0][0], protein_string[-1][1]):
@@ -257,6 +281,24 @@ def main():
             else:
                 predict_bins.append(0)
         all_preds.append(predict_bins)
+
+    # with open(output_file, "w") as f:
+    #     # Go through each reference sequence
+    #     cin = -1
+    #     for i in range(len(sequences)):
+    #         if sequences[i].id not in ecoli:
+    #             continue
+    #         cin += 1
+    #         # Go through the actual sequence
+    #         for loc in range(len(all_preds[cin])):
+    #             print(loc+1,                    # location
+    #                   sequences[i].id,             # reference sequence id
+    #                   sequences[i].host,             # reference sequence species
+    #                   sequences[i].true_seq[loc],       # true value at location
+    #                   all_preds[cin][loc],            # predicted value at location
+    #                   "0",   # probability of prediction at location, add later: all_preds_prob[i][loc]
+    #                   sep="\t",
+    #                   file=f)
 
     with open(output_file, "w") as f:
         # Go through each reference sequence

@@ -24,8 +24,8 @@ def mapq2prob(quality_score):
 
 np.random.seed(1)
 
-dataset_id = "dataset_v01"
-version_id = "dataset_v01"
+dataset_id = "dataset_v02"
+version_id = "dataset_v02"
 
 dataset = Path("data/processed/10_datasets") / dataset_id
 training_table = Path(dataset) / "train.tsv"
@@ -34,12 +34,12 @@ test_table = Path(dataset) / "test.tsv"
 individual_train_sequences = Path(dataset) / "train" / "sequences"
 individual_test_sequences = Path(dataset) / "test" / "sequences"
 
-validation_root = Path("models/mappy_model")
+validation_root = Path("models/mappy_model_test")
 validation_root.mkdir(parents=True, exist_ok=True)
 iteration_root = Path(validation_root, version_id)
 iteration_root.mkdir(parents=True, exist_ok=True)
 
-raw_metrics_output = Path("data/visualization/performance/mappy_performance.tsv")
+raw_metrics_output = Path("data/visualization/performance/mappy_performance_v02_test.tsv")
 
 # Load training test split
 
@@ -87,6 +87,9 @@ with TemporaryDirectory() as tmp:
 
 fpr, tpr, thresholds = roc_curve(max_labels, max_scores)
 roc_auc = auc(fpr, tpr)
+
+print(f"ROC AUC: {roc_auc}")
+sys.exit()
 
 # Plot using matplotlib
 

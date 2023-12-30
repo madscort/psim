@@ -25,8 +25,8 @@ def main():
     ps_sample = collections.namedtuple("ps_sample", ["sample_id", "type", "ref_seq", "coord_start", "coord_end"])
     ref_seqs = Path("data/processed/01_combined_databases/reference_sequences/")
     ps_taxonomy = Path("data/processed/01_combined_databases/ps_tax_info.tsv")
-    output_file = Path("data/visualization/sliding_window/predictions_version01_inception_25stride.tsv")
-    stride = 25000
+    output_file = Path("data/visualization/sliding_window/predictions_version02_inception_whatstride.tsv")
+    stride = 5000
     chunk_size = 25000
     transformer = False
 
@@ -86,7 +86,7 @@ def main():
     seq_host = []
     all_truths = []
 
-    sample_table_test = Path("data/processed/10_datasets/dataset_v01/test.tsv")
+    sample_table_test = Path("data/processed/10_datasets/dataset_v02/test.tsv")
     test = pd.read_csv(sample_table_test, sep="\t", header=0, names=['id', 'type', 'label'])
     # Get sampleids from val for label == 1:
 
@@ -194,7 +194,7 @@ def main():
     #         seq += line.strip()
     #     seqs.append(seq)
 
-    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/inception/checkpoint/jjr0igsz.ckpt").absolute(),
+    model = SequenceModule.load_from_checkpoint(checkpoint_path=Path("models/inception/checkpoint/24eamlea_version02.ckpt").absolute(),
                                                 map_location=device)
     model.to(device)
 

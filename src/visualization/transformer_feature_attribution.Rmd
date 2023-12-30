@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r}
-
+# Old database
 ig <- 
   read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_positives.tsv",
              col_names = c("protein","attribution", "origin")) %>%
@@ -19,6 +19,40 @@ ig <-
 
 ```
 
+```{r}
+
+ig <- 
+  read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_all_v02.tsv",
+             col_names = c("protein","attribution", "origin")) %>%
+  drop_na()
+
+```
+
+```{r}
+
+ig <- 
+  read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_alldb_positive_v02.tsv",
+             col_names = c("protein","attribution", "origin")) %>%
+  drop_na()
+
+```
+
+```{r}
+
+ig <- 
+  read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_alldb_positive_baseline_v02.tsv",
+             col_names = c("protein","attribution", "origin")) %>%
+  drop_na()
+
+```
+```{r}
+
+ig <- 
+  read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_alldb_prophage_baseline_v02.tsv",
+             col_names = c("protein","attribution", "origin")) %>%
+  drop_na()
+
+```
 
 ```{r}
 ig %>% 
@@ -36,7 +70,71 @@ topp <- ig %>%
   arrange(desc(attr_sum)) %>%
   slice(1:20) %>%
   select(protein)
+
+ig %>% 
+  mutate("attr_abs" = attribution) %>% 
+  group_by(protein) %>% 
+  summarise(attr_sum = mean(attr_abs)) %>% 
+  arrange(desc(attr_sum)) %>%
+  slice(1:20) %>%
+  pull(protein)
+
 ```
+
+```{r}
+ig_count <- ig %>% 
+  mutate(attr_abs = abs(attribution)) %>%
+  group_by(protein) %>%
+  mutate(freq = n()) %>%
+  ungroup()
+
+ig_count %>% 
+  group_by(protein) %>%
+  summarise(
+    attr_sum = mean(attr_abs))
+
+# Calculate frequency-weighted mean attribution and select the top 20
+ig_count %>% 
+  group_by(protein) %>%
+  summarise(
+    attr_sum = mean(attr_abs),
+    freq_weighted_attr = attr_sum * freq / sum(freq)) %>% 
+  arrange(desc(freq_weighted_attr)) %>%
+  slice(1:20) %>%
+  select(protein)
+```
+
+```{r}
+ig_count
+
+topp <- ig_count %>% 
+  filter(protein != '<PAD>') %>% 
+  group_by(protein,freq) %>%
+  summarise(
+    attr_sum = mean(attr_abs)) %>% 
+  mutate('newsum' = (attr_sum*freq)/9912) %>% 
+  ungroup() %>% 
+  arrange(desc(newsum)) %>%
+  slice(1:22) %>%
+  select(protein,newsum)
+
+ig_count %>% 
+  group_by(protein,freq) %>%
+  summarise(
+    attr_sum = mean(attr_abs)) %>% 
+  mutate('newsum' = (attr_sum*freq)/9912) %>% 
+  ungroup() %>% 
+  arrange(desc(newsum)) %>%
+  slice(1:22) %>%
+  pull(protein)
+
+topp_order <-
+  topp %>% 
+  pull(protein)
+
+```
+
+
 
 ```{r}
 attribution_order <- ig %>% 
@@ -56,12 +154,22 @@ ig %>%
 
 
 ```{r}
+
+anno <- read_delim("./../../data/visualization/profile_function/transformer/top_21_features_phage_annotations_cog_kegg_pfam.tsv",
+             col_names = c('protein',
+                           'CPFAM'))
+
 ig %>% 
+  filter(origin != 'unknown') %>% 
+  left_join(anno, by='protein') %>% 
   inner_join(topp) %>% 
-  ggplot(aes(protein, attribution, color = origin)) + 
+  arrange(desc(newsum)) %>% 
+  mutate('CPFAM' = factor(CPFAM, levels = rev(unique(.$CPFAM)))) %>%  
+  ggplot(aes(CPFAM, attribution, fill = origin)) + 
   geom_boxplot() +
-  geom_point() +
+  #geom_point() +
   coord_flip() +
+  theme_bw() +
   theme(legend.position = "bottom")
 ```
 
@@ -97,6 +205,16 @@ ig_all <-
 ```
 
 ```{r}
+
+ig_all <- 
+  read_delim("./../../data/visualization/captum/integrated_gradients/transformer/aggregated_lig_all_v02.tsv",
+             col_names = c("protein","attribution", "origin")) %>%
+  drop_na()
+
+```
+
+
+```{r}
 ig_all %>% 
   #mutate("protein" = factor(protein, levels = attribution_order)) %>% 
   ggplot(aes(origin, attribution)) + 
@@ -115,6 +233,12 @@ attribution_order_all <- ig_all %>%
 
 ```{r}
 ig_all %>% 
+  filter(origin == "unknown")
+```
+
+
+```{r}
+ig_all %>% 
   mutate("protein" = factor(protein, levels = attribution_order_all)) %>% 
   ggplot(aes(protein, attribution, color = origin)) + 
   geom_point() +
@@ -126,14 +250,16 @@ ig_all %>%
 
 
 ```{r}
+library("plotrix")
+
 sumstats <- ig_all %>%
   group_by(origin) %>%
   summarise(
     count = n(),
     mean = mean(attribution, na.rm=TRUE),
-    stddev = sd(attribution, na.rm=TRUE),
-    meansd_l = mean - stddev,
-    meansd_u = mean + stddev
+    stderr = std.error(attribution),
+    meanstderr_l = mean - stderr,
+    meanstderr_u = mean + stderr
   )
 ```
 
@@ -146,7 +272,7 @@ sumstats
 sumstats %>% 
   ggplot(aes(x=origin, y=mean)) + 
   geom_point() +
-  geom_errorbar(aes(ymin = meansd_l, ymax = meansd_u), width=0.1) +
+  geom_errorbar(aes(ymin = meanstderr_l, ymax = meanstderr_u), width=0.1) +
   labs(x="Species", y = "Mean (-/+SD) Petal Width (cm)") +
   theme_minimal()
 ```

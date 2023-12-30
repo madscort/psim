@@ -4,7 +4,7 @@ from pathlib import Path
 from pytorch_lightning import Trainer
 from pytorch_lightning import seed_everything
 
-from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score, recall_score
 
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
@@ -15,14 +15,14 @@ def main():
     
     # Input
     dataset_root = Path("data/processed/10_datasets/")
-    version = "dataset_v01"
+    version = "dataset_v02"
     dataset = dataset_root / version
 
-    checkpoint = Path("models/inception/checkpoint/ko59yma9.ckpt")
+    checkpoint = Path("models/inception/checkpoint/24eamlea_version02.ckpt")
 
     # Output
     output_root = Path("data/visualization/performance")
-    outputfn = output_root / "inception_performance.tsv"
+    outputfn = output_root / "inception_performance_v02.tsv"
 
     data_module = FixedLengthSequenceModule(dataset=dataset,
                                             return_type="fna",
@@ -56,10 +56,12 @@ def main():
     f1 = f1_score(y_true, y_pred, average='binary')
     precision = precision_score(y_true, y_pred, average='binary')
     auc = roc_auc_score(y_true, y_pred_prob_class_1)
+    recall = recall_score(y_true, y_pred)
 
     print("Accuracy: ", acc)
     print("F1: ", f1)
     print("Precision: ", precision)
+    print("Recall: ", recall)
     print("AUC: ", auc)
 
     # Write tsv with: 

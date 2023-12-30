@@ -4,7 +4,7 @@ from pathlib import Path
 from pytorch_lightning import Trainer
 from pytorch_lightning import seed_everything
 
-from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score, recall_score, confusion_matrix
 
 from src.data.LN_data_module import FixedLengthSequenceModule
 from src.models.LNSequenceModule import SequenceModule
@@ -15,14 +15,15 @@ def main():
     
     # Input
     dataset_root = Path("data/processed/10_datasets/")
-    version = "dataset_v01"
+    version = "dataset_v02"
     dataset = dataset_root / version
 
-    checkpoint = Path("psim/06kbqyvr/checkpoints/epoch=29-step=8010.ckpt")
+    checkpoint = Path("models/transformer/mmdb_single_v02_small_ofkn1eok.ckpt")
 
     # Output
-    output_root = Path("data/visualization/performance")
-    outputfn = output_root / "small_transformer_performance.tsv"
+    output_root = Path("data/visualization/performance/v02/validation")
+    output_root.mkdir(parents=True, exist_ok=True)
+    outputfn = output_root / "mmdb_single_v02_small_ofkn1eok_performance.tsv"
 
     data_module = FixedLengthSequenceModule(dataset=dataset,
                                             return_type="hmm_match_sequence",
@@ -35,7 +36,7 @@ def main():
     model.eval()
     trainer = Trainer(accelerator="cpu")
 
-    trainer.test(model, datamodule=data_module)
+    trainer.validate(model, datamodule=data_module)
 
     y_true = torch.cat([x['y_true'] for x in trainer.results], dim=0)
     y_hat = torch.cat([x['y_hat'] for x in trainer.results], dim=0)
@@ -57,13 +58,17 @@ def main():
     f1 = f1_score(y_true, y_pred, average='binary')
     precision = precision_score(y_true, y_pred, average='binary')
     auc = roc_auc_score(y_true, y_pred_prob_class_1)
+    recall = recall_score(y_true, y_pred, average='binary')
+    cm = confusion_matrix(y_true, y_pred)
 
     print("Accuracy: ", acc)
     print("F1: ", f1)
     print("Precision: ", precision)
     print("AUC: ", auc)
+    print("Recall: ", recall)
+    print("Confusion Matrix:\n", cm)
 
-    # Write tsv with: 
+    # # Write tsv with: 
     with open(outputfn, "w") as fout:
         for tru, pred, prob, logits in zip(y_true, y_pred, y_pred_prob_class_1, y_hat):
             print(f"{tru}\t{pred}\t{prob}\t{logits.squeeze()[0].item()}\t{logits.squeeze()[1].item()}", file=fout)

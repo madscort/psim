@@ -59,15 +59,15 @@ def get_host_taxonomy():
 def create_dataset():
     input = Path("data/processed/01_combined_databases")
     root = Path("data/processed/10_datasets")
-    dataset_id = "dataset_v01"
+    dataset_id = "dataset_v02"
     dataset_root = Path(root, dataset_id)
 
     length = 25000
 
     sampletable = Path("data/processed/02_preprocessed_database/02_homology_reduction/sampletable.tsv")
-    host_input = Path("data/processed/06_host_sequences/sampled_host_seqs.90.fna")
-    viral_input = Path("data/processed/05_viral_sequences/imgvr_filtered/cd.hit.IMGVR_minimal_seqs.90.fna")
-    meta_input = Path("data/processed/04_metagenomic_contigs/hmp2/random_seqs.90.fna")
+    host_input = Path("data/processed/06_host_sequences/sampled_host_seqs.90_DOWNSAMPLED.fna")
+    viral_input = Path("data/processed/05_viral_sequences/imgvr_filtered/cd.hit.IMGVR_minimal_seqs.90_DOWNSAMPLED.fna")
+    meta_input = Path("data/processed/04_metagenomic_contigs/almeida/almeida_rand.90_DOWNSAMPLED.fna")
 
     sequence_collection = {'host': host_input,
                            'provirus': viral_input,

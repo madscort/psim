@@ -98,9 +98,16 @@ class MMseqs2:
         if subprocess_return.returncode != 0:
             raise Exception(f"Error running mmseqs2: {subprocess_return}")
     
-    def cluster(self, cluster_mode: int = 1, cov_mode: int = 0, min_cov: float = 0.9, min_seq_id: float = 0.3):
-        cmd = ['mmseqs','cluster', '--cluster-mode', f"{cluster_mode}", '--min-seq-id', f"{min_seq_id}", '--cov-mode', f"{cov_mode}",
-            '-c', f"{min_cov}", self.out / "db", self.out / "cluster", self.out / "tmp"]
+    def cluster(self, cluster_mode: int = 0, cov_mode: int = 0, min_cov: float = 0.9, min_seq_id: float = 0.3):
+        cmd = ['mmseqs','cluster',
+               '--cluster-mode', f"{cluster_mode}",
+               '--min-seq-id', f"{min_seq_id}",
+               '--cov-mode', f"{cov_mode}",
+               '-c', f"{min_cov}",
+               '-s', '7',
+               '--cluster-steps', '5',
+               '--cluster-reassign', '1',
+               self.out / "db", self.out / "cluster", self.out / "tmp"]
         subprocess_return = subprocess.run(cmd)
         if subprocess_return.returncode != 0:
             raise Exception(f"Error running mmseqs2: {subprocess_return}")
@@ -245,10 +252,10 @@ if __name__ == '__main__':
     project_dir = Path(__file__).resolve().parents[2]
     load_dotenv(find_dotenv())
 
-    dataset = Path("data/processed/10_datasets/dataset_v01")
+    dataset = Path("data/processed/10_datasets/dataset_v02")
     sampletable = dataset / "train.tsv"
     pfam_hmm = Path("data/external/databases/pfam/pfam_A/Pfam-A.hmm")
-    output = Path("data/processed/10_datasets/attachings")
+    output = Path("data/processed/10_datasets/v02/attachings")
     output_path = dataset / "strings" / "pfama"
     samples = get_samples(sampletable)
     output.mkdir(parents=True, exist_ok=True)
@@ -261,7 +268,7 @@ if __name__ == '__main__':
     FETCH_HMMS = False
     SCAN_REPRESENTATIVES = False
     TRANSLATE_DATASET = False
-    SCAN_DATASET = False
+    SCAN_DATASET = True
     ATTACH_TO_DATASET = True
 
     if COLLECT_PROTEINS:
@@ -275,6 +282,7 @@ if __name__ == '__main__':
                     print(protein.seq, file=f_out)
         logging.info("Done collecting proteins.")
 
+
     mm = MMseqs2(db=output / "proteins.faa", out=output / "mmseqsDB")
     if CLUSTER:
         logging.info("Clustering...")
@@ -286,13 +294,13 @@ if __name__ == '__main__':
             for protein in counts:
                 print(protein, counts[protein], file=f_out, sep="\t")
         logging.info("Done clustering.")
-    
+
     # Get representatives sequences for each cluster
     min_cluster_size = 5
 
     representatives = mm.get_representatives(min_cluster_size)
     logging.info(f"Number of cluster representatives: {len(representatives)}")
-    
+
     if SAVE_REPRESENTATIVES:
         logging.info("Saving representatives...")
         records = get_records_from_identifiers(fasta=output / "proteins.faa", identifiers=representatives)
@@ -341,7 +349,6 @@ if __name__ == '__main__':
 
     accessions = set([hits[hit].target_accession for hit in hits])
     print(f"Number of non-redundant accessions used: {len(accessions)}")
-    
     splits = ["train", "val", "test"]
 
     if TRANSLATE_DATASET:
@@ -375,7 +382,6 @@ if __name__ == '__main__':
         torch.save(translated_data_splits, output / "translated.pt")
         logging.info("Done translating dataset.")
 
-    
     hmm_splits = { split: HMMER(hmm=result_db, db=output / f"{split}_split.faa", out=output / f"hmmer_{split}_split", scan=True) for split in splits}
     
     if SCAN_DATASET:

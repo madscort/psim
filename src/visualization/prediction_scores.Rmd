@@ -47,7 +47,7 @@ scores %>%
 
 
 scores <- 
-  read_delim("./../../data/visualization/score_distribution/label/inception/ko59yma9.tsv",
+  read_delim("./../../data/visualization/score_distribution/v02/label/inception/24eamlea_version02.tsv",
              col_names = c("pred_id","score","label")) %>% 
   mutate("label" = factor(label))
 
@@ -59,7 +59,26 @@ scores %>%
 
 ```
 
-### BY SAMPLE TYPE satellite, meta, host, provirus etc.
+## Transformer
+
+```{r}
+
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/label/transformer/alldb_v02_small_iak7l6eg.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+```
+
+
+### BY ORIGIN
 
 ## MAPPY
 
@@ -73,7 +92,7 @@ scores <-
 scores %>% 
   ggplot(aes(score, pred_id, color = label)) +
   geom_boxplot() +
-  geom_jitter(height = 0.1) +
+  geom_jitter(height = 0.2) +
   theme_minimal()
 
 ```
@@ -83,7 +102,7 @@ scores %>%
 
 ```{r}
 scores <- 
-  read_delim("./../../data/visualization/score_distribution/type/inception/ko59yma9.tsv",
+  read_delim("./../../data/visualization/score_distribution/v02/origin/inception/24eamlea_version02.tsv",
              col_names = c("pred_id","score","label")) %>% 
   mutate("label" = factor(label))
 
@@ -94,6 +113,80 @@ scores %>%
   theme_minimal()
 
 ```
+
+## Transformer
+
+```{r}
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/origin/transformer/alldb_v02_small_iak7l6eg.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.3, width=0.02) +
+  theme_minimal()
+
+```
+
+
+# ONLY TRUE LABELS BY SATELLITE TYPE:
+
+## Mappy
+
+
+## CNN
+
+```{r}
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/sat_type/inception/24eamlea_version02.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+```
+
+## Transformer
+
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/sat_type/transformer/alldb_v02_small_iak7l6eg.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+
+```
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/sat_type/transformer/alldb_v02_small_less_vjiyv06a.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label))
+
+scores %>% 
+  ggplot(aes(score, pred_id, color = label)) +
+  geom_boxplot() +
+  geom_jitter(height = 0.1) +
+  theme_minimal()
+
+
+```
+
 
 # ONLY TRUE LABELS BY TAX FAMILY
 
@@ -129,7 +222,7 @@ scores %>%
 ```{r}
 
 scores <- 
-  read_delim("./../../data/visualization/score_distribution/taxfamily/inception/ko59yma9.tsv",
+  read_delim("./../../data/visualization/score_distribution/v02/taxfamily/inception/24eamlea_version02.tsv",
              col_names = c("pred_id","score","label")) %>% 
   mutate("label" = factor(label))
 
@@ -150,6 +243,9 @@ scores %>%
 
 
 ```
+
+
+
 # ONLY TRUE LABELS BY TAX SPECIES
 
 ## MAPPY
@@ -184,7 +280,7 @@ scores %>%
 ```{r}
 
 scores <- 
-  read_delim("./../../data/visualization/score_distribution/taxspecies/inception/ko59yma9.tsv",
+  read_delim("./../../data/visualization/score_distribution/v02/taxspecies/inception/24eamlea_version02.tsv",
              col_names = c("pred_id","score","label")) %>% 
   mutate("label" = factor(label))
 
@@ -220,3 +316,186 @@ scores %>%
 ```
 
 
+
+```{r}
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/type/mappy_base/mappy_all_types.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label, levels = c(0,1))) %>% 
+  mutate('pred_id' = factor(pred_id, levels = unique(pred_id)))
+
+scores %>% 
+  ggplot(aes(x=score, y=fct_reorder(pred_id,label == 1), color = label)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(height = 0.2) +
+  theme_minimal()
+
+```
+data/visualization/score_distribution/v02/type/inception/
+
+```{r}
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/type/inception/24eamlea_version02.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label, levels = c(0,1))) %>% 
+  mutate('pred_id' = factor(pred_id, levels = unique(pred_id)))
+
+scores %>% 
+  ggplot(aes(x=score, y=fct_reorder(pred_id,label == 1), color = label)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(height = 0.3) +
+  theme_minimal()
+```
+
+
+```{r}
+
+# Read the data
+sampletable <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_genus_type_dist.tsv",
+                          col_names = c("id","sample_type","label","genus")) %>%
+  mutate(sample_type = factor(sample_type))
+
+# Calculate the total count for each genus
+top_genus <- sampletable %>%
+  group_by(genus) %>%
+  summarise(total_count = n()) %>% 
+  filter(total_count > 10) %>% 
+  arrange(desc(total_count)) %>% 
+  pull(genus)
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/genus/inception/24eamlea_version02.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label, levels = c(0,1))) %>% 
+  mutate('pred_id' = str_to_sentence(pred_id)) %>% 
+  filter(pred_id %in% top_genus) %>% 
+  mutate('pred_id' = factor(pred_id, levels = rev(top_genus)))
+
+scores %>% 
+  ggplot(aes(x=score, y=pred_id, color = label)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(height = 0.3) +
+  theme_minimal()
+```
+
+
+
+
+```{r}
+
+# Read the data
+sampletable <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_genus_type_dist.tsv",
+                          col_names = c("id","sample_type","label","genus")) %>%
+  mutate(sample_type = factor(sample_type))
+
+# Calculate the total count for each genus
+top_genus <- sampletable %>%
+  group_by(genus) %>%
+  summarise(total_count = n()) %>% 
+  filter(total_count > 10) %>% 
+  arrange(desc(total_count)) %>% 
+  pull(genus)
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/genus_type/inception/24eamlea_version02.tsv",
+             col_names = c('genus','type_id','score','label'))
+
+total_count <- 
+  scores %>% 
+  filter(type_id %in% c('CFPICI','PICI')) %>% 
+  group_by(genus, type_id, score) %>% 
+  summarise(total_counts = n()) %>% 
+  ungroup() %>% 
+  select(genus, total_counts)
+
+top_g <- 
+  scores %>% 
+  #filter(type_id %in% c('CFPICI','PICI')) %>% 
+  group_by(genus) %>% 
+  summarise(total_counts = n()) %>% 
+  ungroup() %>% 
+  select(genus, total_counts) %>% 
+  arrange(desc(total_counts)) %>% 
+  pull(genus)
+
+scores %>% 
+  #filter(type_id %in% c('CFPICI','PICI')) %>%
+  mutate('genus' = factor(genus, levels = rev(top_g))) %>% 
+  ggplot(aes(x=score, y=genus, color = type_id)) +
+  geom_point() +
+  geom_boxplot(outlier.shape = NA) +
+  #geom_jitter(height = 0.3) +
+  theme_minimal()
+
+scores %>% 
+  #filter(type_id %in% c('CFPICI','PICI')) %>%
+  mutate('genus' = factor(genus, levels = rev(top_g))) %>% 
+  ggplot(aes(x=score, y=genus, fill = type_id)) +
+  ggridges::geom_density_ridges(
+    jittered_points = TRUE,
+    position = ggridges::position_points_jitter(height = 0.1, width = 0.01),
+    point_shape = 16, point_size = 0.7, point_alpha = 1, alpha = 1,
+    stat = 'binline', scale = 0.3,
+    panel_scaling=TRUE) +
+  theme_bw() +
+  scale_fill_manual(values = colors) +
+  scale_color_manual(values = colors)
+
+count_per_type <- scores %>% 
+  group_by(type_id,genus) %>% 
+  summarise(n = n()) %>% 
+  pivot_wider(names_from = genus, values_from = n, values_fill = 0) %>% 
+  mutate(sum = rowSums(across(where(is.numeric)))) %>% 
+  select(type_id,sum)
+
+
+genera_per_type <- 
+  scores %>% 
+  group_by(type_id, genus) %>%
+  distinct(genus) %>% 
+  ungroup()
+
+genera_per_type <- 
+  genera_per_type %>% 
+  group_by(type_id) %>% 
+  summarise(n = n()) %>% 
+  ungroup()
+
+genera_per_type %>% 
+  left_join(count_per_type, by = 'type_id') %>% 
+  mutate('count_per_genera' = sum/n)
+
+
+```
+
+
+```{r}
+
+# Read the data
+sampletable <- read_delim("./../../data/visualization/sample_type_dist_v02/sample_genus_type_dist.tsv",
+                          col_names = c("id","sample_type","label","genus")) %>%
+  mutate(sample_type = factor(sample_type))
+
+# Calculate the total count for each genus
+top_genus <- sampletable %>%
+  group_by(genus) %>%
+  summarise(total_count = n()) %>% 
+  filter(total_count > 10) %>% 
+  arrange(desc(total_count)) %>% 
+  pull(genus)
+
+scores <- 
+  read_delim("./../../data/visualization/score_distribution/v02/genus/mappy_base/mappy.tsv",
+             col_names = c("pred_id","score","label")) %>% 
+  mutate("label" = factor(label, levels = c(0,1))) %>% 
+  mutate('pred_id' = str_to_sentence(pred_id)) %>% 
+  filter(pred_id %in% top_genus) %>% 
+  mutate('pred_id' = factor(pred_id, levels = rev(top_genus)))
+
+scores %>% 
+  ggplot(aes(x=score, y=pred_id, color = label)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(height = 0.3) +
+  theme_minimal()
+```
