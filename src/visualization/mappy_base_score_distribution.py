@@ -2,6 +2,7 @@ import mappy as mp
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from collections import Counter
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -10,6 +11,7 @@ from sklearn.metrics import precision_recall_fscore_support
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
+import numpy as np
 
 def mapq2prob(quality_score):
     return 10 ** (-quality_score / 10)
@@ -25,7 +27,6 @@ def mapq2prob(quality_score):
 np.random.seed(1)
 
 dataset_id = "dataset_v02"
-version_id = "dataset_v02"
 
 dataset = Path("data/processed/10_datasets") / dataset_id
 training_table = Path(dataset) / "train.tsv"
@@ -34,12 +35,13 @@ test_table = Path(dataset) / "test.tsv"
 individual_train_sequences = Path(dataset) / "train" / "sequences"
 individual_test_sequences = Path(dataset) / "test" / "sequences"
 
-validation_root = Path("models/mappy_model_test")
-validation_root.mkdir(parents=True, exist_ok=True)
-iteration_root = Path(validation_root, version_id)
-iteration_root.mkdir(parents=True, exist_ok=True)
+iteration_root = Path("data/vizualization/score_distribution/type/mappy_base/")
+tax = Path("data/processed/03_taxonomical_annotation/ps_tax_info.tsv")
+tax_df = pd.read_csv(tax, sep="\t", header=0, names=["id", "family", "genus", "species"])
 
-raw_metrics_output = Path("data/visualization/performance/mappy_performance_v02_test.tsv")
+outf = Path("data/visualization/score_distribution/type/mappy_base/")
+outf.mkdir(parents=True, exist_ok=True)
+outfn = outf / "mappy_all_types.tsv"
 
 # Load training test split
 
@@ -48,6 +50,8 @@ df_test = pd.read_csv(test_table, sep="\t", header=0, names=['id', 'type', 'labe
 
 train_ids = df_training.loc[df_training['label'] == 1]['id'].values
 test_ids = df_test['id'].values
+
+type_labels = df_test["type"].values.tolist()
 
 with TemporaryDirectory() as tmp:
     # Create fasta for training data
@@ -83,13 +87,45 @@ with TemporaryDirectory() as tmp:
         max_scores.append(max_score)
         max_labels.append(df_test.loc[df_test['id'] == id]['label'].values[0])
 
-# Get roc curve with scikit learn
+# taxfamily = tax_df["family"].values.tolist()
+# tax_count = Counter(taxfamily)
 
+taxspecies = tax_df["species"].values.tolist()
+tax_count = Counter(taxspecies)
+
+common_tax = tax_count.most_common(20)
+toptax = [x[0] for x in common_tax]
+
+with open(outfn, "w") as fout:
+    for sample_n, mapq in enumerate(max_scores):
+        # if df_test['label'][sample_n] == 0:
+        #     continue
+        prob = 1 - mapq2prob(mapq)
+        label = df_test['label'][sample_n]
+
+        # Label
+        #pred_id = df_test['label'][sample_n]
+        
+        # Type
+        pred_id = type_labels[sample_n]
+        if df_test['label'][sample_n] == 0:
+            if pred_id.startswith("pro"):
+                pred_id = "Prophage"
+            elif pred_id.startswith("meta"):
+                pred_id = "Metagenomic"
+            elif pred_id.startswith("host"):
+                pred_id = "Host"
+        
+        print(pred_id,
+              f"{prob:.4f}",
+              int(label),
+              sep="\t",
+              file=fout)
+
+
+# Get roc curve with scikit learn
 fpr, tpr, thresholds = roc_curve(max_labels, max_scores)
 roc_auc = auc(fpr, tpr)
-
-print(f"ROC AUC: {roc_auc}")
-sys.exit()
 
 # Plot using matplotlib
 
@@ -162,9 +198,3 @@ with open(Path(iteration_root, "result_metrics", "metrics.tsv"), "w") as f:
     print(f"Precision: {precision}", file = f)
     print(f"Recall: {recall}", file = f)
     print(f"F1: {f1}", file = f)
-
-# Save raw performance scores:
-with open(raw_metrics_output, "w") as fout:
-    for tru, pred, mapq in zip(max_labels, label_predict, max_scores):
-        prob = 1 - mapq2prob(mapq)
-        print(f"{tru}\t{pred}\t{prob}", file=fout)

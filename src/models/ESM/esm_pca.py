@@ -52,7 +52,7 @@ pca = PCA(n_components=2)
 genome_2d = pca.fit_transform(genome_vectors)
 
 # Visualization
-colors = ['red', 'blue'] # For example, 'red' for positive and 'blue' for negative
+colors = ['red', 'blue']
 labels_unique = list(set(labels))
 
 for label, color in zip(labels_unique, colors):

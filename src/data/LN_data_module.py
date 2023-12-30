@@ -7,21 +7,37 @@ from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
 from src.data.get_sequence import get_gene_gc_sequence
+from torch.nn import ConstantPad1d
+import torch.nn.functional as F
 
+# # 100 seqs of variable length (< max_len)
+# seq_lens = torch.randint(low=10,high=44,size=(100,))
+# seqs = [torch.rand(n) for n in seq_lens]
 
+# # pad first seq to desired length
+# seqs[0] = nn.ConstantPad1d((0, max_len - seqs[0].shape[0]), 0)(seqs[0])
 
-def collate_fn_pad(batch):
-    if isinstance(batch[0][0], list):
-        batch = sorted(batch, key=lambda x: len(x[0]), reverse=True)
-    else:
-        batch = sorted(batch, key=lambda x: x[0].size(0), reverse=True)
+# # pad all seqs to desired length
+# seqs = pad_sequence(seqs)
+
+def collate_fn_pad(batch, max_len=56):
     sequences, labels = zip(*batch)
-    lengths = [len(seq) for seq in sequences]
-    sequences_padded = pad_sequence(sequences, batch_first=True, padding_value=0)
-    
+    print(sequences)
+    padded_sequences = [ConstantPad1d((0, max(0, max_len - len(seq))), 0)(seq) for seq in sequences]
+    sequences_padded = pad_sequence(padded_sequences, batch_first=True)
+    print(sequences_padded)
     labels = torch.stack(labels)
 
-    return {"seqs": sequences_padded, "lengths": lengths}, labels
+    return sequences_padded, labels
+
+# def collate_fn_pad(batch, pad_len=56):
+#     sequences, labels = zip(*batch)
+#     print(sequences)
+#     sequences[0] = F.pad(sequences[0], (0, pad_len - sequences[0].shape[0]), value=0)
+#     sequences_padded = pad_sequence(sequences, batch_first=True, padding_value=0)
+    
+#     labels = torch.stack(labels)
+#     return sequences_padded, labels
 
 def encode_sequence(sequence, vocabulary_mapping):
     return [vocabulary_mapping[gene_name] for gene_name in sequence]
@@ -33,9 +49,6 @@ class SequenceDataset(Dataset):
     Instantiate with path to sequence and label file
     """
     def __init__(self, input_sequences, input_labels, vocab_map=None):
-        
-        # Init is run once, when instantiating the dataset class.
-        # It takes a list of labels and a list of paths to sequence files.
         self.labels = input_labels
         self.sequences_paths = input_sequences
         self.vocab_map = vocab_map
@@ -91,8 +104,13 @@ class HMMMatchSequenceDataset(SequenceDataset):
         # A sample includes:
         # - Sequence of HMM profile matches (for each gene)
         # - Label (binary)
+        
+        pad_len = 56
 
+        # Get sequence of HMM profile matches and pad
         encoded_sequences = torch.tensor(encode_sequence(self.sequences_paths[idx], self.vocab_map))
+        padding = pad_len - len(encoded_sequences)
+        encoded_sequences = F.pad(encoded_sequences, (0, padding), "constant", 0)
         # Load label
         label = self.labels[idx]
 
@@ -118,7 +136,7 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         self.vocab_map = None
         
         if pad_pack:
-            self.collate_fn = collate_fn_pad
+            self.collate_fn = None
         else:
             self.collate_fn = None
 
@@ -137,12 +155,13 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
     def setup(self, stage: str = None):
         
         if self.string_model:
-            self.data_splits = torch.load(self.dataset / "strings" / "pfama" / "dataset.pt")
+            self.data_splits = torch.load(self.dataset / "strings" / "allDB" / "dataset.pt")
             vocab = set()
             for split in ['train', 'val', 'test']:
                 self.max_seq_length = max(self.max_seq_length, max(len(seq) for seq in self.data_splits[split]['sequences']))
                 vocab.update(x for seq in self.data_splits[split]['sequences'] for x in seq)
-            self.vocab_map = {name: i for i, name in enumerate(vocab)}
+            self.vocab_map = {name: i+1 for i, name in enumerate(sorted(vocab))}
+            self.vocab_map['<PAD>'] = 0
             self.vocab_size = len(self.vocab_map)
         else:
             self.data_splits = {
@@ -156,12 +175,28 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         class_weights = [total / class_count for class_count in class_counts]
         self.class_weights = torch.tensor(class_weights, dtype=torch.float)
         self.steps_per_epoch = int(total) // self.batch_size
-    
+
+        if self.train_indices is not None:
+            self.resplit_data()
+
     def load_split_data(self, split):
         df = pd.read_csv(self.dataset / f"{split}.tsv", sep="\t", header=0, names=["id", "type", "label"])
         sequences = [self.dataset / split / "sequences" / f"{id}.fna" for id in df['id'].values]
         labels = torch.tensor(df['label'].values)
         return {'sequences': sequences, 'labels': labels}
+
+    def resplit_data(self):
+        data_sequences = []
+        data_labels = []
+        for split in ['train', 'val', 'test']:
+            data_sequences.extend(self.data_splits[split]['sequences'])
+            data_labels.extend(self.data_splits[split]['labels'])
+
+        self.data_splits = {
+            'train': {'sequences': [data_sequences[i] for i in self.train_indices], 'labels': [data_labels[i] for i in self.train_indices]},
+            'val': {'sequences': [data_sequences[i] for i in self.val_indices], 'labels': [data_labels[i] for i in self.val_indices]},
+            'test': {'sequences': [data_sequences[i] for i in self.test_indices], 'labels': [data_labels[i] for i in self.test_indices]}
+        }
 
     def train_dataloader(self):
         return DataLoader(self.DatasetType(self.data_splits['train']['sequences'], self.data_splits['train']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)
@@ -170,4 +205,4 @@ class FixedLengthSequenceModule(pl.LightningDataModule):
         return DataLoader(self.DatasetType(self.data_splits['val']['sequences'], self.data_splits['val']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)
 
     def test_dataloader(self):
-        return DataLoader(self.DatasetType(self.data_splits['test']['sequences'], self.data_splits['test']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)
+        return DataLoader(self.DatasetType(self.data_splits['test']['sequences'], self.data_splits['test']['labels'], vocab_map=self.vocab_map), batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, collate_fn=self.collate_fn, persistent_workers=True)

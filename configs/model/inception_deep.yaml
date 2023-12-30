@@ -1,4 +1,4 @@
-name: "BasicInception"
+name: "DeepInception"
 
 data:
   return_type: "fna"
@@ -6,7 +6,7 @@ data:
   use_saved: False
 
 params:
-  _target_: src.models.CNN_collection.BasicInception
+  _target_: src.models.CNN_collection.DeepInception
   num_classes: 2
   fc_dropout_rate: 0.25
   batchnorm: True

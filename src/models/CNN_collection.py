@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import sys
 class BasicCNN(nn.Module):
     def __init__(self,
                 num_classes: int,
@@ -149,6 +149,88 @@ class BasicInception(nn.Module):
             x = self.dropout(x)
         return x
 
+
+class DeepInception(nn.Module):
+    def __init__(self,
+                 num_classes: int,
+                 fc_dropout_rate: float,
+                 batchnorm: bool,
+                 activation_fn: str,
+                 fc_num: int,
+                 alt_dropout_rate: float,
+                 num_inception_layers: int,
+                 out_channels: int,
+                 kernel_size_b1: int,
+                 kernel_size_b2: int,
+                 keep_b3: bool,
+                 keep_b4: bool):
+        super(DeepInception, self).__init__()
+        
+        self.activation_fn = getattr(nn, activation_fn)()
+
+        self.ingestion_block = nn.Sequential(
+            nn.Conv1d(in_channels=5, out_channels=8, kernel_size=32, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm1d(8),
+            nn.AvgPool1d(kernel_size=2, stride=2),
+            nn.Conv1d(in_channels=8, out_channels=16, kernel_size=16, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm1d(16),
+            nn.AvgPool1d(kernel_size=2, stride=2)
+        )
+
+        self.num_inception_layers = num_inception_layers
+        self.inception1 = InceptionModule(in_channels=16,
+                                          out_channels=out_channels,
+                                          kernel_size_b1=kernel_size_b1,
+                                          kernel_size_b2=kernel_size_b2,
+                                          keep_b3=keep_b3,
+                                          keep_b4=keep_b4)
+
+        inception_out_ch = (2+int(keep_b3)+int(keep_b4))*out_channels
+        self.inception_extra = InceptionModule(in_channels=inception_out_ch,
+                                               out_channels=out_channels,
+                                               kernel_size_b1=kernel_size_b1,
+                                               kernel_size_b2=kernel_size_b2,
+                                               keep_b3=keep_b3,
+                                               keep_b4=keep_b4)
+
+        self.fc_pre = nn.Linear(inception_out_ch, inception_out_ch)
+        self.fc_opt1 = nn.Linear(inception_out_ch, 16)
+        self.fc_opt2 = nn.Linear(16, num_classes)
+        self.fc = nn.Linear(inception_out_ch, num_classes)
+        
+        self.dropout_conv = nn.Dropout(alt_dropout_rate)
+        self.dropout = nn.Dropout(fc_dropout_rate)
+        self.batchnorm = batchnorm
+        self.fc_num = fc_num
+
+    def forward(self, x):
+        x = self.ingestion_block(x)
+        x = self.inception1(x)
+        if self.num_inception_layers > 1:
+            for i in range(self.num_inception_layers - 1):
+                x = self.inception_extra(x)
+
+        # Global avg pooling
+        x = torch.mean(x, dim=2)
+
+        # 1. optional FC
+        if self.fc_num > 1:
+            x = self.fc_pre(x)
+            x = self.activation_fn(x)
+            x = self.dropout(x)
+        # 2. optional FC
+        if self.fc_num == 3:
+            x = self.fc_opt1(x)
+            x = self.activation_fn(x)
+            x = self.dropout(x)
+            x = self.fc_opt2(x)
+            x = self.dropout(x)
+        else:
+            x = self.fc(x)
+            x = self.dropout(x)
+        return x
 
 
 class InceptionModule(nn.Module):

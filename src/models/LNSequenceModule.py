@@ -1,11 +1,12 @@
 import torch
+import sys
 import wandb
 import torch.nn as nn
 import pytorch_lightning as pl
 from hydra.utils import instantiate
 from torch.optim.lr_scheduler import OneCycleLR, LambdaLR
 from torchmetrics.functional import accuracy
-from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, roc_auc_score, recall_score
 from omegaconf import DictConfig
 
 class SequenceModule(pl.LightningModule):
@@ -38,7 +39,7 @@ class SequenceModule(pl.LightningModule):
         return self.model(x)
     
     def training_step(self, batch, batch_idx):
-        _, loss, acc = self._get_preds_loss_accuracy(batch)
+        _, loss, acc, _ = self._get_preds_loss_accuracy(batch)
         if self.fold_num is not None:
             wandb.log({f"train_CV{self.fold_num}_loss" : loss.item(),
                     f"train_CV{self.fold_num}_acc" : acc.item()})
@@ -49,8 +50,13 @@ class SequenceModule(pl.LightningModule):
             self.log('train_acc', acc, prog_bar=True, logger=True, batch_size=self.batch_size)
         return loss
 
+    def on_validation_epoch_start(self) -> None:
+        super().on_validation_epoch_start()
+        self.validation_outputs = []
+        return
+
     def validation_step(self, batch, batch_idx):
-        preds, loss, acc = self._get_preds_loss_accuracy(batch)
+        preds, loss, acc, logits = self._get_preds_loss_accuracy(batch)
         if self.fold_num is not None:
             wandb.log({f"val_CV{self.fold_num}_loss" : loss.item(),
                     f"val_CV{self.fold_num}_acc" : acc.item()})
@@ -59,8 +65,14 @@ class SequenceModule(pl.LightningModule):
         else:
             self.log('val_loss', loss, prog_bar=True, logger=True, batch_size=self.batch_size)
             self.log('val_acc', acc, prog_bar=True, logger=True, batch_size=self.batch_size)
+        self.validation_outputs.append({'y_true': batch[1], 'y_hat': logits})
         return preds
     
+    def on_validation_epoch_end(self):
+        self.trainer.results = self.validation_outputs
+        del self.validation_outputs
+        return
+
     def on_test_epoch_start(self) -> None:
         super().on_test_epoch_start()
         self.test_outputs = []
@@ -70,7 +82,6 @@ class SequenceModule(pl.LightningModule):
         super().test_step()
         x, y = batch
         y_hat = self(x)
-        
         self.test_outputs.append({'y_true': y, 'y_hat': y_hat})
         return
 
@@ -93,6 +104,7 @@ class SequenceModule(pl.LightningModule):
         acc = accuracy_score(y_true, y_pred)
         f1 = f1_score(y_true, y_pred, average='binary')
         precision = precision_score(y_true, y_pred, average='binary')
+        recall = recall_score(y_true, y_pred)
         auc = roc_auc_score(y_true, y_pred_prob_class_1)
         
         # log metrics
@@ -100,16 +112,20 @@ class SequenceModule(pl.LightningModule):
         self.log('test_f1', torch.tensor(f1, dtype=torch.float32), batch_size=self.batch_size)
         self.log('test_precision', torch.tensor(precision, dtype=torch.float32), batch_size=self.batch_size)
         self.log('test_auc', torch.tensor(auc, dtype=torch.float32), batch_size=self.batch_size)
+        self.log('test_recall', torch.tensor(recall, dtype=torch.float32), batch_size=self.batch_size)
         
         # log ROC curve in wandb
         y_true_np = y_true.numpy()
         y_hat_np = y_pred_prob.numpy()
+        
+        # log to wandb if experiment has attribute log:
+        if hasattr(self.logger.experiment, 'log'):
+            self.logger.experiment.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
 
-        self.logger.experiment.log({"roc": wandb.plot.roc_curve(y_true_np, y_hat_np, labels=["Class 0", "Class 1"], classes_to_plot=[1])})
+            self.logger.experiment.log({"performance": wandb.Table(columns=["accuracy", "f1", "precision", "auc"],
+                        data=[[acc, f1, precision, auc]])})
 
-        self.logger.experiment.log({"performance": wandb.Table(columns=["accuracy", "f1", "precision", "auc"],
-                    data=[[acc, f1, precision, auc]])})
-
+        self.trainer.results = self.test_outputs
         del self.test_outputs
         return
 
@@ -128,18 +144,18 @@ class SequenceModule(pl.LightningModule):
         if self.warmup:
             scheduler = OneCycleLR(
                 optimizer,
-                max_lr=self.lr, # The peak LR to achieve after warmup
-                epochs=self.trainer.max_epochs, # Total number of epochs
-                steps_per_epoch=self.steps_per_epoch, # Number of batches in one epoch
-                pct_start=0.1, # The percentage of the cycle spent increasing the LR
-                anneal_strategy='cos', # How to anneal the LR (options: 'cos' or 'linear')
-                final_div_factor=1e4, # The factor to reduce the LR at the end
+                max_lr=self.lr, # Peak LR to achieve after warmup
+                epochs=self.trainer.max_epochs,
+                steps_per_epoch=self.steps_per_epoch,
+                pct_start=0.1, # Warmup pct
+                anneal_strategy='cos',
+                final_div_factor=1e4,
             )
         else:
             scheduler = LambdaLR(optimizer, lambda epoch: 0.95 ** epoch)
 
         monitor = 'val_loss'
-        return {'optimizer': optimizer, 'lr_scheduler': scheduler, 'monitor': monitor}
+        return optimizer #{'optimizer': optimizer, 'lr_scheduler': scheduler, 'monitor': monitor}
     
     def _get_preds_loss_accuracy(self, batch):
         '''convenience function since train/valid/test steps are similar'''
@@ -148,7 +164,7 @@ class SequenceModule(pl.LightningModule):
         preds = logits.argmax(dim=1)
         loss = self.criterion(logits, y)
         acc = accuracy(preds, y, 'binary')
-        return preds, loss, acc
+        return preds, loss, acc, logits
 
     def on_save_checkpoint(self, checkpoint):
         if self.vocab_map is not None:
