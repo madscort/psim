@@ -4,7 +4,9 @@ Thesis project repository
 
 Title: Identifying phage satellites in metagenomic data using deep learning
 
+Author: Mads Cort
 
+==============================
 
 Organization
 ------------
